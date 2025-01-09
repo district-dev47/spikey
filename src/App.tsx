@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Trophy, Users, Calendar, BarChart3, Sun, Moon, ChevronRight, X, Plus, Edit } from 'lucide-react';
-import { createTeam, getAllTeams, addPlayerToTeam, getTeamPlayers, deleteTeam, deletePlayer, syncTeamPlayerCount, createGame, updateGameSet, getAllGames } from './firebase/FirestoreExample';
+import { createTeam, getAllTeams, addPlayerToTeam, getTeamPlayers, deleteTeam, deletePlayer, syncTeamPlayerCount, createGame, updateGameSet, getAllGames, deleteGame } from './firebase/FirestoreExample';
 import { db } from './firebase/firebase';
 
 interface Player {
@@ -412,6 +412,25 @@ function App() {
     }
   };
 
+  const handleDeleteGame = async (gameId: string, opponent: string) => {
+    const isConfirmed = window.confirm(
+      `Are you sure you want to delete the game against ${opponent}?`
+    );
+    
+    if (isConfirmed) {
+      try {
+        await deleteGame(gameId);
+        setGames(prevGames => prevGames.filter(game => game.id !== gameId));
+        if (selectedGame?.id === gameId) {
+          setSelectedGame(null);
+        }
+      } catch (error) {
+        console.error("Error deleting game:", error);
+        alert("Failed to delete game. Please try again.");
+      }
+    }
+  };
+
   const renderTeamContent = () => (
     <>
       <div className="p-4 grid grid-cols-2 gap-4">
@@ -540,27 +559,37 @@ function App() {
                   <h3 className="font-medium dark:text-white">{team?.name} vs {game.opponent}</h3>
                   <p className="text-sm text-gray-500 dark:text-gray-400">{game.date}</p>
                 </div>
-                {game.status !== 'in-progress' && (
-                  <div className="flex flex-col items-end">
-                    <span className={`px-3 py-1 rounded-full text-sm ${
-                      game.status === 'win' 
-                        ? 'bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300'
-                        : 'bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300'
-                    }`}>
-                      {game.status === 'win' ? 'Win' : 'Loss'}
-                    </span>
-                    {game.finalScore && (
-                      <span className="mt-1 text-sm font-medium dark:text-white">
-                        {game.finalScore.team} - {game.finalScore.opponent}
+                <div className="flex items-center space-x-2">
+                  {game.status !== 'in-progress' ? (
+                    <div className="flex flex-col items-end">
+                      <span className={`px-3 py-1 rounded-full text-sm ${
+                        game.status === 'win' 
+                          ? 'bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300'
+                          : 'bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300'
+                      }`}>
+                        {game.status === 'win' ? 'Win' : 'Loss'}
                       </span>
-                    )}
-                  </div>
-                )}
-                {game.status === 'in-progress' && (
-                  <span className="px-3 py-1 rounded-full text-sm bg-yellow-100 dark:bg-yellow-900 text-yellow-700 dark:text-yellow-300">
-                    In Progress
-                  </span>
-                )}
+                      {game.finalScore && (
+                        <span className="mt-1 text-sm font-medium dark:text-white">
+                          {game.finalScore.team} - {game.finalScore.opponent}
+                        </span>
+                      )}
+                    </div>
+                  ) : (
+                    <span className="px-3 py-1 rounded-full text-sm border border-yellow-500 text-yellow-500 dark:border-yellow-400 dark:text-yellow-400">
+                      In Progress
+                    </span>
+                  )}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDeleteGame(game.id, game.opponent);
+                    }}
+                    className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-full"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
               </div>
 
               {/* Set Details - Only show when game is selected */}
