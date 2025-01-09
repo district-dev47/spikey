@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Trophy, Users, Calendar, BarChart3, Sun, Moon, ChevronRight, X, Plus, Edit } from 'lucide-react';
+import { createTeam, getAllTeams, addPlayerToTeam, getTeamPlayers, deleteTeam, deletePlayer, syncTeamPlayerCount, createGame, updateGameSet, getAllGames } from './firebase/FirestoreExample';
+import { db } from './firebase/firebase';
 
 interface Player {
   name: string;
@@ -41,7 +43,7 @@ interface LineupPlayer extends Player {
 }
 
 function App() {
-  const [darkMode, setDarkMode] = useState(false);
+  const [darkMode, setDarkMode] = useState(true);
   const [selectedTeam, setSelectedTeam] = useState<string | null>(null);
   const [showNewTeamModal, setShowNewTeamModal] = useState(false);
   const [showNewPlayerModal, setShowNewPlayerModal] = useState(false);
@@ -114,6 +116,8 @@ function App() {
   ];
 
   useEffect(() => {
+    document.documentElement.classList.add('dark');
+
     if (darkMode) {
       document.documentElement.classList.add('dark');
     } else {
@@ -121,102 +125,290 @@ function App() {
     }
   }, [darkMode]);
 
-  const handleAddTeam = () => {
+  useEffect(() => {
+    // Verify Firebase connection
+    if (!db) {
+      console.error('Firestore not initialized!');
+      return;
+    }
+    console.log('Firestore connection verified');
+  }, []);
+
+  useEffect(() => {
+    const fetchTeams = async () => {
+      try {
+        const fetchedTeams = await getAllTeams();
+        
+        // Sync player counts for all teams
+        for (const team of fetchedTeams) {
+          await syncTeamPlayerCount(team.id);
+        }
+        
+        // Fetch teams again to get updated counts
+        const updatedTeams = await getAllTeams();
+        setTeams(updatedTeams);
+        
+        // Fetch players for each team
+        const playersObj = {};
+        for (const team of updatedTeams) {
+          const teamPlayers = await getTeamPlayers(team.id);
+          playersObj[team.id] = teamPlayers;
+        }
+        setPlayers(playersObj);
+      } catch (error) {
+        console.error("Error fetching teams:", error);
+        alert("Failed to load teams. Please refresh the page.");
+      }
+    };
+
+    fetchTeams();
+  }, []);
+
+  useEffect(() => {
+    const fetchGames = async () => {
+      try {
+        const fetchedGames = await getAllGames();
+        setGames(fetchedGames);
+      } catch (error) {
+        console.error("Error fetching games:", error);
+        alert("Failed to load games. Please refresh the page.");
+      }
+    };
+
+    fetchGames();
+  }, []);
+
+  const handleAddTeam = async () => {
     if (newTeamName.trim()) {
-      const newTeam = {
-        id: (teams.length + 1).toString(),
-        name: newTeamName.trim(),
-        playerCount: 0
-      };
-      setTeams([...teams, newTeam]);
-      setPlayers({ ...players, [newTeam.id]: [] });
-      setNewTeamName('');
-      setShowNewTeamModal(false);
+      try {
+        const docRef = await createTeam({
+          name: newTeamName.trim(),
+          playerCount: 0,
+          createdAt: new Date()
+        });
+
+        const newTeam = {
+          id: docRef.id,
+          name: newTeamName.trim(),
+          playerCount: 0
+        };
+        
+        setTeams([...teams, newTeam]);
+        setPlayers({ ...players, [newTeam.id]: [] });
+        setNewTeamName('');
+        setShowNewTeamModal(false);
+        
+        console.log("Team created successfully with ID:", docRef.id);
+      } catch (error) {
+        console.error("Error creating team:", error);
+        // Add user feedback here
+        alert("Failed to create team. Please try again.");
+      }
     }
   };
 
-  const handleAddPlayer = () => {
+  const handleAddPlayer = async () => {
     if (selectedTeam && newPlayer.name && newPlayer.number) {
-      const updatedPlayers = {
-        ...players,
-        [selectedTeam]: [...players[selectedTeam], newPlayer]
-      };
-      setPlayers(updatedPlayers);
-      
-      const updatedTeams = teams.map(team => 
-        team.id === selectedTeam 
-          ? { ...team, playerCount: team.playerCount + 1 }
-          : team
-      );
-      setTeams(updatedTeams);
-      
-      setNewPlayer({ name: '', number: '', position: 'Setter' });
-      setShowNewPlayerModal(false);
+      try {
+        await addPlayerToTeam(selectedTeam, newPlayer);
+        
+        // Update local state
+        const updatedPlayers = {
+          ...players,
+          [selectedTeam]: [...players[selectedTeam], newPlayer]
+        };
+        setPlayers(updatedPlayers);
+        
+        // Fetch updated team data to get new player count
+        const fetchedTeams = await getAllTeams();
+        setTeams(fetchedTeams);
+        
+        setNewPlayer({ name: '', number: '', position: 'Setter' });
+        setShowNewPlayerModal(false);
+      } catch (error) {
+        console.error("Error adding player:", error);
+        alert("Failed to add player. Please try again.");
+      }
     }
   };
 
-  const handleAddGame = () => {
+  const handleAddGame = async () => {
     if (newGame.teamId && newGame.opponent) {
-      const newGameEntry: Game = {
-        id: (games.length + 1).toString(),
-        teamId: newGame.teamId,
-        opponent: newGame.opponent,
-        date: new Date().toISOString().split('T')[0],
-        status: 'in-progress',
-        sets: []
-      };
-      setGames([...games, newGameEntry]);
-      setSelectedGame(newGameEntry);
-      setNewGame({ teamId: '', opponent: '' });
-      setShowNewGameModal(false);
-      setCurrentSetNumber(1);
-      setShowLineupModal(true);
+      try {
+        // Create initial game data
+        const newGameData = {
+          teamId: newGame.teamId,
+          opponent: newGame.opponent,
+          date: new Date().toISOString().split('T')[0],
+          status: 'in-progress' as const,
+          sets: [] as Set[],
+          createdAt: new Date()
+        };
+
+        const gameRef = await createGame(newGameData);
+        
+        const newGameEntry: Game = {
+          id: gameRef.id,
+          ...newGameData
+        };
+
+        setGames(prevGames => [...prevGames, newGameEntry]);
+        setSelectedGame(newGameEntry);
+        setNewGame({ teamId: '', opponent: '' });
+        setShowNewGameModal(false);
+        setCurrentSetNumber(1);
+        // Show lineup modal after creating game
+        setShowLineupModal(true);
+      } catch (error) {
+        console.error("Error creating game:", error);
+        alert("Failed to create game. Please try again.");
+      }
     }
   };
 
-  const handleSetLineup = () => {
+  const handleSetLineup = async () => {
     if (selectedGame && currentLineup.length === 6) {
-      const newSet: Set = {
-        number: currentSetNumber,
-        lineup: currentLineup,
-      };
-      
-      const updatedGame = {
-        ...selectedGame,
-        sets: [...selectedGame.sets, newSet]
-      };
-      
-      setGames(games.map(game => 
-        game.id === selectedGame.id ? updatedGame : game
-      ));
-      
-      setSelectedGame(updatedGame);
-      setShowLineupModal(false);
-      setCurrentLineup([]);
+      try {
+        const newSet: Set = {
+          number: currentSetNumber,
+          lineup: currentLineup,
+        };
+
+        const result = await updateGameSet(selectedGame.id, newSet);
+        
+        const updatedGame = {
+          ...selectedGame,
+          sets: result.sets,
+          status: result.status,
+          finalScore: result.finalScore
+        };
+
+        setGames(prevGames => 
+          prevGames.map(game => game.id === selectedGame.id ? updatedGame : game)
+        );
+        
+        setSelectedGame(updatedGame);
+        setShowLineupModal(false);
+        setCurrentLineup([]);
+        // Return to games overview after setting lineup
+        setActiveTab('games');
+        // Show score modal for the first set
+        setShowSetScoreModal(true);
+      } catch (error) {
+        console.error("Error setting lineup:", error);
+        alert("Failed to set lineup. Please try again.");
+      }
+    } else {
+      alert("Please select 6 players for the lineup.");
     }
   };
 
-  const handleSetScore = () => {
+  const handleSetScore = async () => {
     if (selectedGame) {
-      const updatedSets = selectedGame.sets.map(set => 
-        set.number === currentSetNumber
-          ? { ...set, score: setScore }
-          : set
-      );
+      try {
+        // Validate score
+        if (setScore.team < 0 || setScore.opponent < 0) {
+          alert("Scores cannot be negative");
+          return;
+        }
 
-      const updatedGame = {
-        ...selectedGame,
-        sets: updatedSets
-      };
+        // Regular set validation
+        if (setScore.team < 25 && setScore.opponent < 25) {
+          alert("Sets must reach at least 25 points");
+          return;
+        }
+        if (Math.abs(setScore.team - setScore.opponent) < 2) {
+          alert("One team must win by 2 points");
+          return;
+        }
 
-      setGames(games.map(game => 
-        game.id === selectedGame.id ? updatedGame : game
-      ));
+        const newSet: Set = {
+          number: currentSetNumber,
+          lineup: currentLineup,
+          score: setScore
+        };
 
-      setSelectedGame(updatedGame);
-      setShowSetScoreModal(false);
-      setSetScore({ team: 0, opponent: 0 });
-      setCurrentSetNumber(prev => prev + 1);
+        const result = await updateGameSet(selectedGame.id, newSet);
+
+        const updatedGame = {
+          ...selectedGame,
+          sets: result.sets,
+          status: result.status,
+          finalScore: result.finalScore
+        };
+
+        setGames(games.map(game => 
+          game.id === selectedGame.id ? updatedGame : game
+        ));
+
+        setSelectedGame(updatedGame);
+        setShowSetScoreModal(false);
+        setSetScore({ team: 0, opponent: 0 });
+
+        if (result.status === 'in-progress') {
+          setCurrentSetNumber(prev => prev + 1);
+          // Return to games overview
+          setActiveTab('games');
+        } else {
+          // Game is complete
+          alert(`Game Complete! ${result.status === 'win' ? 'Your team won!' : 'Your team lost.'} Final score: ${result.finalScore?.team}-${result.finalScore?.opponent}`);
+          // Return to games overview
+          setActiveTab('games');
+        }
+      } catch (error) {
+        console.error("Error updating game:", error);
+        alert("Failed to update game score. Please try again.");
+      }
+    }
+  };
+
+  const handleDeletePlayer = async (teamId: string, playerId: string, playerName: string) => {
+    const isConfirmed = window.confirm(`Are you sure you want to remove ${playerName} from the team?`);
+    
+    if (isConfirmed) {
+      try {
+        await deletePlayer(teamId, playerId);
+        
+        // Update local state
+        const updatedPlayers = {
+          ...players,
+          [teamId]: players[teamId].filter(p => p.id !== playerId)
+        };
+        setPlayers(updatedPlayers);
+        
+        // Fetch updated team data to get new player count
+        const fetchedTeams = await getAllTeams();
+        setTeams(fetchedTeams);
+      } catch (error) {
+        console.error("Error deleting player:", error);
+        alert("Failed to remove player. Please try again.");
+      }
+    }
+  };
+
+  const handleDeleteTeam = async (teamId: string, teamName: string) => {
+    const isConfirmed = window.confirm(
+      `Are you sure you want to delete ${teamName}?\nThis will also remove all players from this team.`
+    );
+    
+    if (isConfirmed) {
+      try {
+        await deleteTeam(teamId);
+        
+        // Update local state
+        setTeams(teams.filter(t => t.id !== teamId));
+        const updatedPlayers = { ...players };
+        delete updatedPlayers[teamId];
+        setPlayers(updatedPlayers);
+        
+        // If the deleted team was selected, clear selection
+        if (selectedTeam === teamId) {
+          setSelectedTeam(null);
+        }
+      } catch (error) {
+        console.error("Error deleting team:", error);
+        alert("Failed to delete team. Please try again.");
+      }
     }
   };
 
@@ -245,19 +437,37 @@ function App() {
         </div>
         <div className="space-y-3">
           {teams.map((team) => (
-            <button
+            <div
               key={team.id}
-              onClick={() => setSelectedTeam(team.id)}
-              className="w-full bg-white dark:bg-secondary/50 rounded-xl p-4 shadow-sm flex items-center justify-between"
+              className={`w-full bg-white dark:bg-secondary/50 rounded-xl p-4 shadow-sm 
+                ${selectedTeam === team.id ? 'ring-2 ring-primary dark:ring-primary' : ''}`}
             >
-              <div>
-                <h3 className="font-medium dark:text-white">{team.name}</h3>
-                <p className="text-sm text-gray-500 dark:text-gray-400">
-                  {team.playerCount} players
-                </p>
+              <div className="flex items-center justify-between">
+                <button
+                  onClick={() => setSelectedTeam(team.id)}
+                  className="flex-1 text-left group"
+                >
+                  <h3 className={`font-medium dark:text-white 
+                    ${selectedTeam === team.id ? 'text-primary dark:text-primary' : ''}`}>
+                    {team.name}
+                  </h3>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                    {team.playerCount} players
+                  </p>
+                </button>
+                <div className="flex items-center space-x-2">
+                  {selectedTeam === team.id && (
+                    <div className="w-2 h-2 rounded-full bg-primary"></div>
+                  )}
+                  <button
+                    onClick={() => handleDeleteTeam(team.id, team.name)}
+                    className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-full"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
               </div>
-              <ChevronRight className="w-5 h-5 text-gray-400 dark:text-gray-500" />
-            </button>
+            </div>
           ))}
         </div>
       </section>
@@ -276,13 +486,21 @@ function App() {
           <div className="bg-white dark:bg-secondary/50 rounded-xl p-4 shadow-sm">
             <div className="space-y-4">
               {players[selectedTeam].map((player) => (
-                <div key={player.number} className="flex items-center justify-between border-b dark:border-gray-700 pb-2">
+                <div key={player.id} className="flex items-center justify-between border-b dark:border-gray-700 pb-2">
                   <div>
                     <p className="font-medium dark:text-white">{player.name}</p>
                     <p className="text-sm text-gray-500 dark:text-gray-400">{player.position}</p>
                   </div>
-                  <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center">
-                    <span className="text-primary font-medium">{player.number}</span>
+                  <div className="flex items-center space-x-3">
+                    <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center">
+                      <span className="text-primary font-medium">{player.number}</span>
+                    </div>
+                    <button
+                      onClick={() => handleDeletePlayer(selectedTeam, player.id, player.name)}
+                      className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-full"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
                   </div>
                 </div>
               ))}
@@ -299,7 +517,7 @@ function App() {
         <h2 className="text-lg font-semibold dark:text-white">Games</h2>
         <button
           onClick={() => setShowNewGameModal(true)}
-          className="flex items-center space-x-1 bg-primary text-white px-3 py-1.5 rounded-lg"
+          className="flex items-center space-x-1 border border-primary text-primary px-3 py-1.5 rounded-lg hover:bg-primary/10 transition-colors"
         >
           <Plus className="w-4 h-4" />
           <span>New Game</span>
@@ -309,21 +527,34 @@ function App() {
       <div className="space-y-4">
         {games.map((game) => {
           const team = teams.find(t => t.id === game.teamId);
+          const isSelected = selectedGame?.id === game.id;
+          
           return (
-            <div key={game.id} className="bg-white dark:bg-secondary/50 rounded-xl p-4 shadow-sm">
-              <div className="flex justify-between items-start mb-2">
+            <div 
+              key={game.id} 
+              className="bg-white dark:bg-secondary/50 rounded-xl p-4 shadow-sm cursor-pointer"
+              onClick={() => setSelectedGame(isSelected ? null : game)}
+            >
+              <div className="flex justify-between items-start">
                 <div>
                   <h3 className="font-medium dark:text-white">{team?.name} vs {game.opponent}</h3>
                   <p className="text-sm text-gray-500 dark:text-gray-400">{game.date}</p>
                 </div>
                 {game.status !== 'in-progress' && (
-                  <span className={`px-3 py-1 rounded-full text-sm ${
-                    game.status === 'win' 
-                      ? 'bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300'
-                      : 'bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300'
-                  }`}>
-                    {game.status === 'win' ? 'Win' : 'Loss'}
-                  </span>
+                  <div className="flex flex-col items-end">
+                    <span className={`px-3 py-1 rounded-full text-sm ${
+                      game.status === 'win' 
+                        ? 'bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300'
+                        : 'bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300'
+                    }`}>
+                      {game.status === 'win' ? 'Win' : 'Loss'}
+                    </span>
+                    {game.finalScore && (
+                      <span className="mt-1 text-sm font-medium dark:text-white">
+                        {game.finalScore.team} - {game.finalScore.opponent}
+                      </span>
+                    )}
+                  </div>
                 )}
                 {game.status === 'in-progress' && (
                   <span className="px-3 py-1 rounded-full text-sm bg-yellow-100 dark:bg-yellow-900 text-yellow-700 dark:text-yellow-300">
@@ -332,40 +563,54 @@ function App() {
                 )}
               </div>
 
-              <div className="mt-4 space-y-2">
-                {game.sets.map((set, index) => (
-                  <div key={index} className="flex items-center justify-between p-2 bg-gray-50 dark:bg-secondary-dark rounded-lg">
-                    <span className="text-sm font-medium dark:text-white">Set {set.number}</span>
-                    {set.score ? (
-                      <div className="flex items-center space-x-2">
-                        <span className="font-semibold dark:text-white">{set.score.team} - {set.score.opponent}</span>
-                      </div>
-                    ) : (
-                      <button
-                        onClick={() => {
-                          setSelectedGame(game);
-                          setShowSetScoreModal(true);
-                        }}
-                        className="text-primary text-sm"
-                      >
-                        Enter Score
-                      </button>
-                    )}
-                  </div>
-                ))}
-                {game.status === 'in-progress' && game.sets.length < 5 && (
-                  <button
-                    onClick={() => {
-                      setSelectedGame(game);
-                      setCurrentSetNumber(game.sets.length + 1);
-                      setShowLineupModal(true);
-                    }}
-                    className="w-full p-2 text-center text-primary text-sm border border-primary/30 rounded-lg"
-                  >
-                    Start Set {game.sets.length + 1}
-                  </button>
-                )}
-              </div>
+              {/* Set Details - Only show when game is selected */}
+              {isSelected && (
+                <div className="mt-4 space-y-2">
+                  <div className="h-px bg-gray-200 dark:bg-gray-700 my-3"></div>
+                  <h4 className="text-sm font-medium dark:text-white mb-2">Set Details</h4>
+                  {game.sets.map((set, index) => (
+                    <div key={index} className="flex items-center justify-between p-2 bg-gray-50 dark:bg-secondary-dark rounded-lg">
+                      <span className="text-sm font-medium dark:text-white">Set {set.number}</span>
+                      {set.score ? (
+                        <div className="flex items-center space-x-2">
+                          <span className={`font-semibold ${
+                            set.score.team > set.score.opponent 
+                              ? 'text-green-600 dark:text-green-400'
+                              : 'text-red-600 dark:text-red-400'
+                          }`}>
+                            {set.score.team} - {set.score.opponent}
+                          </span>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedGame(game);
+                            setCurrentSetNumber(set.number);
+                            setShowSetScoreModal(true);
+                          }}
+                          className="text-primary text-sm hover:underline"
+                        >
+                          Enter Score
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                  {game.status === 'in-progress' && game.sets.length < 4 && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedGame(game);
+                        setCurrentSetNumber(game.sets.length + 1);
+                        setShowLineupModal(true);
+                      }}
+                      className="w-full p-2 text-center text-primary text-sm border border-primary/30 rounded-lg mt-2"
+                    >
+                      Set {game.sets.length + 1} Lineup
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
           );
         })}
@@ -401,7 +646,7 @@ function App() {
       </main>
 
       <nav className="fixed bottom-0 w-full bg-white dark:bg-secondary border-t dark:border-gray-700">
-        <div className="flex justify-around p-3">
+        <div className="flex justify-around p-2">
           <button 
             onClick={() => setActiveTab('team')}
             className={`flex flex-col items-center ${activeTab === 'team' ? 'text-primary' : 'text-gray-400 dark:text-gray-500'}`}
@@ -409,14 +654,14 @@ function App() {
             <Users className="w-6 h-6" />
             <span className="text-xs mt-1">Team</span>
           </button>
-          <button 
+          <button
             onClick={() => setActiveTab('games')}
             className={`flex flex-col items-center ${activeTab === 'games' ? 'text-primary' : 'text-gray-400 dark:text-gray-500'}`}
           >
             <Calendar className="w-6 h-6" />
             <span className="text-xs mt-1">Games</span>
           </button>
-          <button 
+          <button
             onClick={() => setActiveTab('stats')}
             className={`flex flex-col items-center ${activeTab === 'stats' ? 'text-primary' : 'text-gray-400 dark:text-gray-500'}`}
           >
@@ -558,7 +803,7 @@ function App() {
               </button>
               <button
                 onClick={handleAddGame}
-                className="px-4 py-2 bg-primary text-white rounded-lg"
+                className="px-4 py-2 border border-primary text-primary rounded-lg hover:bg-primary/10 transition-colors"
               >
                 Start Game
               </button>
