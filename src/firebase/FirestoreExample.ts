@@ -26,10 +26,17 @@ export interface LineupPlayer {
   rotationPosition: number;
 }
 
+export interface Substitution {
+  outPlayer: LineupPlayer;
+  inPlayer: LineupPlayer;
+  currentScore: SetScore;
+}
+
 export interface Set {
   number: number;
   lineup: LineupPlayer[];
   score?: SetScore;
+  substitutions?: Substitution[];
 }
 
 export interface Game {
@@ -66,9 +73,9 @@ async function getAllTeams() {
   try {
     const q = query(collection(db, 'teams'));
     const querySnapshot = await getDocs(q);
-    const teams = [];
+    const teams: Array<TeamData & { id: string }> = [];
     querySnapshot.forEach((doc) => {
-      teams.push({ id: doc.id, ...doc.data() });
+      teams.push({ id: doc.id, ...doc.data() as TeamData });
     });
     return teams;
   } catch (e) {
@@ -106,9 +113,9 @@ async function getTeamPlayers(teamId: string) {
   try {
     const q = query(collection(db, `teams/${teamId}/players`));
     const querySnapshot = await getDocs(q);
-    const players = [];
+    const players: Array<PlayerData & { id: string }> = [];
     querySnapshot.forEach((doc) => {
-      players.push({ id: doc.id, ...doc.data() });
+      players.push({ id: doc.id, ...doc.data() as PlayerData });
     });
     return players;
   } catch (e) {
@@ -237,7 +244,12 @@ async function updateGameSet(gameId: string, set: Set) {
     // Find or add the set
     const setIndex = updatedSets.findIndex(s => s.number === set.number);
     if (setIndex >= 0) {
-      updatedSets[setIndex] = set;
+      // Preserve existing substitutions if not provided in the update
+      const existingSubstitutions = updatedSets[setIndex].substitutions || [];
+      updatedSets[setIndex] = {
+        ...set,
+        substitutions: set.substitutions || existingSubstitutions
+      };
     } else {
       updatedSets.push(set);
     }

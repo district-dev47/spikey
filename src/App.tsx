@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Trophy, Users, Calendar, BarChart3, Sun, Moon, ChevronRight, X, Plus, Edit } from 'lucide-react';
+import { Trophy, Users, Calendar, BarChart3, Sun, Moon, ChevronRight, X, Plus, Edit, UserPlus, ArrowLeftRight, Minus } from 'lucide-react';
 import { createTeam, getAllTeams, addPlayerToTeam, getTeamPlayers, deleteTeam, deletePlayer, syncTeamPlayerCount, createGame, updateGameSet, getAllGames, deleteGame } from './firebase/FirestoreExample';
 import { db } from './firebase/firebase';
 import StatsPage from './components/StatsPage';
@@ -28,6 +28,14 @@ interface Set {
     team: number;
     opponent: number;
   };
+  substitutions?: {
+    outPlayer: LineupPlayer;
+    inPlayer: LineupPlayer;
+    currentScore: {
+      team: number;
+      opponent: number;
+    };
+  }[];
 }
 
 interface Game {
@@ -55,6 +63,7 @@ function App() {
   const [showNewGameModal, setShowNewGameModal] = useState(false);
   const [showLineupModal, setShowLineupModal] = useState(false);
   const [showSetScoreModal, setShowSetScoreModal] = useState(false);
+  const [showSubstitutionModal, setShowSubstitutionModal] = useState(false);
   const [activeTab, setActiveTab] = useState<'team' | 'games' | 'stats'>('team');
   const [newTeamName, setNewTeamName] = useState('');
   const [newPlayer, setNewPlayer] = useState<Player>({
@@ -71,6 +80,19 @@ function App() {
   const [selectedGame, setSelectedGame] = useState<Game | null>(null);
   const [currentSetNumber, setCurrentSetNumber] = useState(1);
   const [setScore, setSetScore] = useState({ team: 0, opponent: 0 });
+  const [selectedSet, setSelectedSet] = useState<Set | null>(null);
+  const [substitution, setSubstitution] = useState<{
+    outPlayer: LineupPlayer | null;
+    inPlayer: LineupPlayer | null;
+    currentScore: {
+      team: number;
+      opponent: number;
+    };
+  }>({
+    outPlayer: null,
+    inPlayer: null,
+    currentScore: { team: 0, opponent: 0 }
+  });
 
   const [teams, setTeams] = useState<Team[]>([
     { id: '1', name: 'Thunder Hawks', playerCount: 12 },
@@ -432,6 +454,57 @@ function App() {
     }
   };
 
+  const handleSubstitution = async () => {
+    if (!selectedGame || !selectedSet || !substitution.outPlayer || !substitution.inPlayer) return;
+
+    try {
+      // Create a new substitution record
+      const newSubstitution = {
+        outPlayer: substitution.outPlayer,
+        inPlayer: substitution.inPlayer,
+        currentScore: substitution.currentScore
+      };
+
+      // Update the set with the new substitution
+      const updatedSet = {
+        ...selectedSet,
+        lineup: selectedSet.lineup.map(player => 
+          player.number === substitution.outPlayer?.number 
+            ? { ...substitution.inPlayer!, rotationPosition: player.rotationPosition }
+            : player
+        ),
+        substitutions: [...(selectedSet.substitutions || []), newSubstitution]
+      };
+
+      // Update the game in Firebase
+      const result = await updateGameSet(selectedGame.id, updatedSet);
+
+      // Update local state with proper type handling
+      setGames(prevGames => 
+        prevGames.map(game => 
+          game.id === selectedGame.id 
+            ? {
+                ...game,
+                sets: result.sets,
+                status: result.status,
+                finalScore: result.finalScore || undefined
+              }
+            : game
+        )
+      );
+
+      setShowSubstitutionModal(false);
+      setSubstitution({
+        outPlayer: null,
+        inPlayer: null,
+        currentScore: { team: 0, opponent: 0 }
+      });
+    } catch (error) {
+      console.error("Error making substitution:", error);
+      alert("Failed to make substitution. Please try again.");
+    }
+  };
+
   const renderTeamContent = () => (
     <>
       <div className="p-4 grid grid-cols-2 gap-4">
@@ -601,8 +674,8 @@ function App() {
                   {game.sets.map((set, index) => (
                     <div key={index} className="flex items-center justify-between p-2 bg-gray-50 dark:bg-secondary-dark rounded-lg">
                       <span className="text-sm font-medium dark:text-white">Set {set.number}</span>
-                      {set.score ? (
-                        <div className="flex items-center space-x-2">
+                      <div className="flex items-center space-x-3">
+                        {set.score ? (
                           <span className={`font-semibold ${
                             set.score.team > set.score.opponent 
                               ? 'text-green-600 dark:text-green-400'
@@ -610,20 +683,38 @@ function App() {
                           }`}>
                             {set.score.team} - {set.score.opponent}
                           </span>
+                        ) : (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedGame(game);
+                              setCurrentSetNumber(set.number);
+                              setShowSetScoreModal(true);
+                            }}
+                            className="text-primary text-sm hover:underline"
+                          >
+                            Enter Score
+                          </button>
+                        )}
+                        <div className="flex items-center space-x-1">
+                          <span className="text-xs text-gray-500 dark:text-gray-400">
+                            {(set.substitutions?.length || 0)}/6
+                          </span>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedGame(game);
+                              setSelectedSet(set);
+                              setShowSubstitutionModal(true);
+                            }}
+                            className="p-1.5 text-primary hover:bg-primary/10 rounded-full"
+                            title="Make Substitution"
+                            disabled={(set.substitutions?.length || 0) >= 6}
+                          >
+                            <ArrowLeftRight className="w-4 h-4" />
+                          </button>
                         </div>
-                      ) : (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedGame(game);
-                            setCurrentSetNumber(set.number);
-                            setShowSetScoreModal(true);
-                          }}
-                          className="text-primary text-sm hover:underline"
-                        >
-                          Enter Score
-                        </button>
-                      )}
+                      </div>
                     </div>
                   ))}
                   {game.status === 'in-progress' && game.sets.length < 4 && (
@@ -654,6 +745,7 @@ function App() {
       players={players} 
       teams={teams}
       onTeamSelect={setSelectedTeam}
+      games={games}
     />
   );
 
@@ -931,27 +1023,55 @@ function App() {
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Your Team
                 </label>
-                <input
-                  type="number"
-                  min="0"
-                  max="99"
-                  value={setScore.team}
-                  onChange={(e) => setSetScore({ ...setScore, team: parseInt(e.target.value) || 0 })}
-                  className="w-full px-4 py-2 rounded-lg border dark:border-gray-600 dark:bg-secondary-dark dark:text-white"
-                />
+                <div className="flex items-center space-x-2">
+                  <button
+                    onClick={() => setSetScore(prev => ({ ...prev, team: Math.max(0, prev.team - 1) }))}
+                    className="w-10 h-10 rounded-full bg-pink-50 dark:bg-pink-900/20 flex items-center justify-center hover:bg-pink-100 dark:hover:bg-pink-900/30 transition-colors border-2 border-pink-200 dark:border-pink-200"
+                  >
+                    <Minus className="w-5 h-5 text-pink-600 dark:text-pink-400" />
+                  </button>
+                  <input
+                    type="number"
+                    min="0"
+                    max="99"
+                    value={setScore.team}
+                    onChange={(e) => setSetScore({ ...setScore, team: parseInt(e.target.value) || 0 })}
+                    className="w-16 px-2 py-2 rounded-lg border dark:border-gray-600 dark:bg-secondary-dark dark:text-white text-center text-lg font-medium"
+                  />
+                  <button
+                    onClick={() => setSetScore(prev => ({ ...prev, team: prev.team + 1 }))}
+                    className="w-10 h-10 rounded-full bg-pink-50 dark:bg-pink-900/20 flex items-center justify-center hover:bg-pink-100 dark:hover:bg-pink-900/30 transition-colors border-2 border-pink-200 dark:border-pink-200"
+                  >
+                    <Plus className="w-5 h-5 text-pink-600 dark:text-pink-400" />
+                  </button>
+                </div>
               </div>
               <div className="flex-1">
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Opponent
                 </label>
-                <input
-                  type="number"
-                  min="0"
-                  max="99"
-                  value={setScore.opponent}
-                  onChange={(e) => setSetScore({ ...setScore, opponent: parseInt(e.target.value) || 0 })}
-                  className="w-full px-4 py-2 rounded-lg border dark:border-gray-600 dark:bg-secondary-dark dark:text-white"
-                />
+                <div className="flex items-center space-x-2">
+                  <button
+                    onClick={() => setSetScore(prev => ({ ...prev, opponent: Math.max(0, prev.opponent - 1) }))}
+                    className="w-10 h-10 rounded-full bg-pink-50 dark:bg-pink-900/20 flex items-center justify-center hover:bg-pink-100 dark:hover:bg-pink-900/30 transition-colors border-2 border-pink-200 dark:border-pink-200"
+                  >
+                    <Minus className="w-5 h-5 text-pink-600 dark:text-pink-400" />
+                  </button>
+                  <input
+                    type="number"
+                    min="0"
+                    max="99"
+                    value={setScore.opponent}
+                    onChange={(e) => setSetScore({ ...setScore, opponent: parseInt(e.target.value) || 0 })}
+                    className="w-16 px-2 py-2 rounded-lg border dark:border-gray-600 dark:bg-secondary-dark dark:text-white text-center text-lg font-medium"
+                  />
+                  <button
+                    onClick={() => setSetScore(prev => ({ ...prev, opponent: prev.opponent + 1 }))}
+                    className="w-10 h-10 rounded-full bg-pink-50 dark:bg-pink-900/20 flex items-center justify-center hover:bg-pink-100 dark:hover:bg-pink-900/30 transition-colors border-2 border-pink-200 dark:border-pink-200"
+                  >
+                    <Plus className="w-5 h-5 text-pink-600 dark:text-pink-400" />
+                  </button>
+                </div>
               </div>
             </div>
             <div className="flex justify-end space-x-3">
@@ -966,6 +1086,176 @@ function App() {
                 className="px-4 py-2 bg-primary text-white rounded-lg"
               >
                 Save Score
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showSubstitutionModal && selectedSet && selectedGame && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-secondary rounded-xl p-6 w-[90%] max-w-md">
+            <div className="flex justify-between items-center mb-4">
+              <div>
+                <h3 className="text-lg font-semibold dark:text-white">Player Substitution - Set {selectedSet.number}</h3>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  Substitutions used: {selectedSet.substitutions?.length || 0}/6
+                </p>
+              </div>
+              <button 
+                onClick={() => setShowSubstitutionModal(false)}
+                className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {(selectedSet.substitutions?.length || 0) >= 6 ? (
+              <div className="text-center py-4">
+                <p className="text-red-500 dark:text-red-400">Maximum substitutions (6) reached for this set.</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {/* Current Score */}
+                <div className="flex items-center space-x-4 mb-4">
+                  <div className="flex-1">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Current Team Score
+                    </label>
+                    <div className="flex items-center space-x-2">
+                      <button
+                        onClick={() => setSubstitution(prev => ({
+                          ...prev,
+                          currentScore: { ...prev.currentScore, team: Math.max(0, prev.currentScore.team - 1) }
+                        }))}
+                        className="w-10 h-10 rounded-full bg-pink-50 dark:bg-pink-900/20 flex items-center justify-center hover:bg-pink-100 dark:hover:bg-pink-900/30 transition-colors border-2 border-pink-200 dark:border-pink-200"
+                      >
+                        <Minus className="w-5 h-5 text-pink-600 dark:text-pink-400" />
+                      </button>
+                      <input
+                        type="number"
+                        min="0"
+                        value={substitution.currentScore.team}
+                        onChange={(e) => setSubstitution({
+                          ...substitution,
+                          currentScore: { ...substitution.currentScore, team: parseInt(e.target.value) || 0 }
+                        })}
+                        className="w-16 px-2 py-2 rounded-lg border dark:border-gray-600 dark:bg-secondary-dark dark:text-white text-center text-lg font-medium"
+                      />
+                      <button
+                        onClick={() => setSubstitution(prev => ({
+                          ...prev,
+                          currentScore: { ...prev.currentScore, team: prev.currentScore.team + 1 }
+                        }))}
+                        className="w-10 h-10 rounded-full bg-pink-50 dark:bg-pink-900/20 flex items-center justify-center hover:bg-pink-100 dark:hover:bg-pink-900/30 transition-colors border-2 border-pink-200 dark:border-pink-200"
+                      >
+                        <Plus className="w-5 h-5 text-pink-600 dark:text-pink-400" />
+                      </button>
+                    </div>
+                  </div>
+                  <div className="flex-1">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Current Opponent Score
+                    </label>
+                    <div className="flex items-center space-x-2">
+                      <button
+                        onClick={() => setSubstitution(prev => ({
+                          ...prev,
+                          currentScore: { ...prev.currentScore, opponent: Math.max(0, prev.currentScore.opponent - 1) }
+                        }))}
+                        className="w-10 h-10 rounded-full bg-pink-50 dark:bg-pink-900/20 flex items-center justify-center hover:bg-pink-100 dark:hover:bg-pink-900/30 transition-colors border-2 border-pink-200 dark:border-pink-200"
+                      >
+                        <Minus className="w-5 h-5 text-pink-600 dark:text-pink-400" />
+                      </button>
+                      <input
+                        type="number"
+                        min="0"
+                        value={substitution.currentScore.opponent}
+                        onChange={(e) => setSubstitution({
+                          ...substitution,
+                          currentScore: { ...substitution.currentScore, opponent: parseInt(e.target.value) || 0 }
+                        })}
+                        className="w-16 px-2 py-2 rounded-lg border dark:border-gray-600 dark:bg-secondary-dark dark:text-white text-center text-lg font-medium"
+                      />
+                      <button
+                        onClick={() => setSubstitution(prev => ({
+                          ...prev,
+                          currentScore: { ...prev.currentScore, opponent: prev.currentScore.opponent + 1 }
+                        }))}
+                        className="w-10 h-10 rounded-full bg-pink-50 dark:bg-pink-900/20 flex items-center justify-center hover:bg-pink-100 dark:hover:bg-pink-900/30 transition-colors border-2 border-pink-200 dark:border-pink-200"
+                      >
+                        <Plus className="w-5 h-5 text-pink-600 dark:text-pink-400" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Player Out Selection */}
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Player Out
+                  </label>
+                  <select
+                    className="w-full px-4 py-2 rounded-lg border border-pink-200 dark:border-pink-200 dark:bg-secondary-dark dark:text-white focus:ring-2 focus:ring-pink-200 focus:border-pink-200 transition-colors"
+                    value={substitution.outPlayer?.number || ''}
+                    onChange={(e) => {
+                      const player = selectedSet.lineup.find(p => p.number === e.target.value);
+                      setSubstitution({ ...substitution, outPlayer: player || null });
+                    }}
+                  >
+                    <option value="">Select Player</option>
+                    {selectedSet.lineup.map((player) => (
+                      <option key={player.number} value={player.number}>
+                        {player.name} (Position {player.rotationPosition})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Player In Selection */}
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Player In
+                  </label>
+                  <select
+                    className="w-full px-4 py-2 rounded-lg border border-pink-200 dark:border-pink-200 dark:bg-secondary-dark dark:text-white focus:ring-2 focus:ring-pink-200 focus:border-pink-200 transition-colors"
+                    value={substitution.inPlayer?.number || ''}
+                    onChange={(e) => {
+                      const player = players[selectedGame.teamId].find(p => p.number === e.target.value);
+                      if (player) {
+                        setSubstitution({
+                          ...substitution,
+                          inPlayer: { ...player, rotationPosition: substitution.outPlayer?.rotationPosition || 0 }
+                        });
+                      }
+                    }}
+                  >
+                    <option value="">Select Player</option>
+                    {players[selectedGame.teamId]
+                      .filter(player => !selectedSet.lineup.some(p => p.number === player.number))
+                      .map((player) => (
+                        <option key={player.number} value={player.number}>
+                          {player.name} ({player.position})
+                        </option>
+                      ))}
+                  </select>
+                </div>
+              </div>
+            )}
+
+            <div className="flex justify-end space-x-3 mt-6">
+              <button
+                onClick={() => setShowSubstitutionModal(false)}
+                className="px-4 py-2 text-gray-500 dark:text-gray-400"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSubstitution}
+                disabled={!substitution.outPlayer || !substitution.inPlayer}
+                className="px-4 py-2 bg-primary text-white rounded-lg disabled:opacity-50"
+              >
+                Make Substitution
               </button>
             </div>
           </div>

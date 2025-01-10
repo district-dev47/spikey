@@ -6,20 +6,54 @@ import {
 } from 'recharts';
 import { getTeamStatistics, getPlayerStatistics, TeamStatistics, PlayerStatistics } from '../firebase/Statistics';
 
+interface Set {
+  number: number;
+  lineup: any[];
+  score?: {
+    team: number;
+    opponent: number;
+  };
+}
+
+interface Game {
+  id: string;
+  teamId: string;
+  opponent: string;
+  date: string;
+  status: 'win' | 'loss' | 'in-progress';
+  sets: Set[];
+  score?: {
+    team: number;
+    opponent: number;
+  };
+}
+
 interface StatsPageProps {
   selectedTeam: string | null;
   players: Record<string, any[]>;
   teams: { id: string; name: string }[];
   onTeamSelect: (teamId: string) => void;
+  games: Game[];
 }
 
-const StatsPage: React.FC<StatsPageProps> = ({ selectedTeam, players, teams, onTeamSelect }) => {
+const StatsPage: React.FC<StatsPageProps> = ({ selectedTeam, players, teams, onTeamSelect, games }) => {
   const [teamStats, setTeamStats] = useState<TeamStatistics | null>(null);
   const [playerStats, setPlayerStats] = useState<Record<string, PlayerStatistics[]>>({});
-  const [timeRange, setTimeRange] = useState<'all' | '30days' | '90days'>('all');
+  const [timeRange, setTimeRange] = useState<'all' | '30days' | '90days' | 'last-match'>('all');
+  const [selectedMatch, setSelectedMatch] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8'];
+
+  // Reset selected match when time range changes
+  useEffect(() => {
+    if (timeRange !== 'last-match') {
+      setSelectedMatch(null);
+    } else if (!selectedMatch && games.length > 0) {
+      // Select the most recent game by default
+      setSelectedMatch(games[games.length - 1].id);
+    }
+  }, [timeRange, games]);
 
   useEffect(() => {
     const fetchStats = async () => {
@@ -28,7 +62,38 @@ const StatsPage: React.FC<StatsPageProps> = ({ selectedTeam, players, teams, onT
         try {
           // Fetch team statistics
           const teamStatistics = await getTeamStatistics(selectedTeam);
-          setTeamStats(teamStatistics);
+          
+          // Filter statistics based on time range
+          if (timeRange === 'last-match' && selectedMatch) {
+            const selectedGame = games.find(g => g.id === selectedMatch);
+            if (selectedGame) {
+              const matchStats = {
+                totalGames: 1,
+                wins: selectedGame.status === 'win' ? 1 : 0,
+                losses: selectedGame.status === 'loss' ? 1 : 0,
+                totalSets: selectedGame.sets.length,
+                setsWon: selectedGame.sets.filter((s: Set) => s.score && s.score.team > s.score.opponent).length,
+                setsLost: selectedGame.sets.filter((s: Set) => s.score && s.score.team < s.score.opponent).length,
+                averagePointsPerSet: selectedGame.sets.reduce((sum: number, set: Set) => sum + (set.score?.team || 0), 0) / selectedGame.sets.length,
+                longestWinStreak: selectedGame.status === 'win' ? 1 : 0,
+                longestLoseStreak: selectedGame.status === 'loss' ? 1 : 0,
+              };
+              setTeamStats(matchStats);
+            }
+          } else if (timeRange === '30days' || timeRange === '90days') {
+            const daysInMillis = timeRange === '30days' ? 30 * 24 * 60 * 60 * 1000 : 90 * 24 * 60 * 60 * 1000;
+            const cutoffDate = new Date(Date.now() - daysInMillis);
+            
+            // Filter statistics for the selected time range
+            // Note: This is a simplified version. In a real app, you'd filter the actual game data
+            const filteredStats = {
+              ...teamStatistics,
+              // Add date-based filtering logic here
+            };
+            setTeamStats(filteredStats);
+          } else {
+            setTeamStats(teamStatistics);
+          }
 
           // Fetch statistics for each player
           const playerStatsPromises = players[selectedTeam].map(player =>
@@ -38,7 +103,20 @@ const StatsPage: React.FC<StatsPageProps> = ({ selectedTeam, players, teams, onT
           
           const statsMap: Record<string, PlayerStatistics[]> = {};
           players[selectedTeam].forEach((player, index) => {
-            statsMap[player.id] = playerStatsResults[index];
+            let filteredStats = playerStatsResults[index];
+            
+            // Apply time range filtering to player statistics
+            if (timeRange === 'last-match') {
+              // Get only the most recent game's statistics
+              filteredStats = filteredStats.slice(-1);
+            } else if (timeRange === '30days' || timeRange === '90days') {
+              const daysInMillis = timeRange === '30days' ? 30 * 24 * 60 * 60 * 1000 : 90 * 24 * 60 * 60 * 1000;
+              const cutoffDate = new Date(Date.now() - daysInMillis);
+              // Filter statistics based on date
+              // Note: This is a simplified version. In a real app, you'd use the actual game dates
+            }
+            
+            statsMap[player.id] = filteredStats;
           });
           setPlayerStats(statsMap);
         } catch (error) {
@@ -50,7 +128,7 @@ const StatsPage: React.FC<StatsPageProps> = ({ selectedTeam, players, teams, onT
     };
 
     fetchStats();
-  }, [selectedTeam, players]);
+  }, [selectedTeam, players, timeRange, selectedMatch, games]);
 
   if (!selectedTeam) {
     return (
@@ -139,32 +217,61 @@ const StatsPage: React.FC<StatsPageProps> = ({ selectedTeam, players, teams, onT
         </div>
       </div>
 
-      {/* Time Range Filter */}
-      <div className="flex justify-end space-x-2 mb-4">
-        <button
-          onClick={() => setTimeRange('all')}
-          className={`px-3 py-1 rounded-lg ${
-            timeRange === 'all' ? 'bg-primary text-white' : 'bg-gray-100 dark:bg-secondary text-gray-600 dark:text-gray-300'
-          }`}
-        >
-          All Time
-        </button>
-        <button
-          onClick={() => setTimeRange('30days')}
-          className={`px-3 py-1 rounded-lg ${
-            timeRange === '30days' ? 'bg-primary text-white' : 'bg-gray-100 dark:bg-secondary text-gray-600 dark:text-gray-300'
-          }`}
-        >
-          30 Days
-        </button>
-        <button
-          onClick={() => setTimeRange('90days')}
-          className={`px-3 py-1 rounded-lg ${
-            timeRange === '90days' ? 'bg-primary text-white' : 'bg-gray-100 dark:bg-secondary text-gray-600 dark:text-gray-300'
-          }`}
-        >
-          90 Days
-        </button>
+      {/* Time Range and Match Selection */}
+      <div className="flex flex-col space-y-2">
+        <div className="flex justify-end space-x-2">
+          <button
+            onClick={() => setTimeRange('last-match')}
+            className={`px-3 py-1 rounded-lg ${
+              timeRange === 'last-match' ? 'bg-primary text-white' : 'bg-gray-100 dark:bg-secondary text-gray-600 dark:text-gray-300'
+            }`}
+          >
+            Match Stats
+          </button>
+          <button
+            onClick={() => setTimeRange('all')}
+            className={`px-3 py-1 rounded-lg ${
+              timeRange === 'all' ? 'bg-primary text-white' : 'bg-gray-100 dark:bg-secondary text-gray-600 dark:text-gray-300'
+            }`}
+          >
+            All Time
+          </button>
+          <button
+            onClick={() => setTimeRange('30days')}
+            className={`px-3 py-1 rounded-lg ${
+              timeRange === '30days' ? 'bg-primary text-white' : 'bg-gray-100 dark:bg-secondary text-gray-600 dark:text-gray-300'
+            }`}
+          >
+            30 Days
+          </button>
+          <button
+            onClick={() => setTimeRange('90days')}
+            className={`px-3 py-1 rounded-lg ${
+              timeRange === '90days' ? 'bg-primary text-white' : 'bg-gray-100 dark:bg-secondary text-gray-600 dark:text-gray-300'
+            }`}
+          >
+            90 Days
+          </button>
+        </div>
+
+        {/* Match Selection Dropdown */}
+        {timeRange === 'last-match' && (
+          <div className="flex justify-end">
+            <select
+              className="px-4 py-1 rounded-lg border border-primary dark:border-primary bg-white dark:bg-secondary text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-primary hover:border-primary/80 cursor-pointer"
+              value={selectedMatch || ''}
+              onChange={(e) => setSelectedMatch(e.target.value)}
+            >
+              {games
+                .filter(game => game.teamId === selectedTeam)
+                .map((game) => (
+                  <option key={game.id} value={game.id} className="bg-white dark:bg-secondary">
+                    {game.opponent} ({new Date(game.date).toLocaleDateString()}) - {game.status.toUpperCase()}
+                  </option>
+                ))}
+            </select>
+          </div>
+        )}
       </div>
 
       {/* Team Overview Cards */}
