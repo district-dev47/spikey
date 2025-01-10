@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Trophy, Users, Calendar, BarChart3, Sun, Moon, ChevronRight, X, Plus, Edit, UserPlus, ArrowLeftRight, Minus, LogOut } from 'lucide-react';
+import { Trophy, Users, Calendar, BarChart3, Sun, Moon, ChevronRight, X, Plus, Edit, UserPlus, ArrowLeftRight, Minus, LogOut, Check, CircleDot, XCircle } from 'lucide-react';
 import { createTeam, getAllTeams, addPlayerToTeam, getTeamPlayers, deleteTeam, deletePlayer, syncTeamPlayerCount, createGame, updateGameSet, getAllGames, deleteGame } from './firebase/FirestoreExample';
 import { db, auth, logOut } from './firebase/firebase';
 import { onAuthStateChanged, User } from 'firebase/auth';
@@ -365,14 +365,26 @@ function App() {
           return;
         }
 
-        // Regular set validation
-        if (setScore.team < 25 && setScore.opponent < 25) {
-          alert("Sets must reach at least 25 points");
-          return;
-        }
-        if (Math.abs(setScore.team - setScore.opponent) < 2) {
-          alert("One team must win by 2 points");
-          return;
+        // Regular set validation (sets 1-4)
+        if (currentSetNumber <= 4) {
+          if (setScore.team < 25 && setScore.opponent < 25) {
+            alert("Sets must reach at least 25 points");
+            return;
+          }
+          if (Math.abs(setScore.team - setScore.opponent) < 2) {
+            alert("One team must win by 2 points");
+            return;
+          }
+        } else {
+          // Fifth set validation (if needed)
+          if (setScore.team < 15 && setScore.opponent < 15) {
+            alert("Fifth set must reach at least 15 points");
+            return;
+          }
+          if (Math.abs(setScore.team - setScore.opponent) < 2) {
+            alert("One team must win by 2 points");
+            return;
+          }
         }
 
         const newSet: Set = {
@@ -383,11 +395,43 @@ function App() {
 
         const result = await updateGameSet(selectedGame.id, newSet);
 
+        // Count sets won by each team
+        const setsWon = result.sets.reduce(
+          (acc, set) => {
+            if (set.score) {
+              if (set.score.team > set.score.opponent) acc.team++;
+              else acc.opponent++;
+            }
+            return acc;
+          },
+          { team: 0, opponent: 0 }
+        );
+
+        // Determine if game is complete or needs a fifth set
+        let gameStatus: 'win' | 'loss' | 'in-progress' = 'in-progress';
+        let finalScore = undefined;
+
+        if (setsWon.team === 3 || setsWon.opponent === 3) {
+          // Game is complete
+          gameStatus = setsWon.team > setsWon.opponent ? 'win' : 'loss';
+          finalScore = setsWon;
+        } else if (currentSetNumber === 4) {
+          // Check if fifth set is needed
+          if (setsWon.team === 2 && setsWon.opponent === 2) {
+            // Game continues to fifth set
+            gameStatus = 'in-progress';
+          } else {
+            // One team has already won 3 sets
+            gameStatus = setsWon.team > setsWon.opponent ? 'win' : 'loss';
+            finalScore = setsWon;
+          }
+        }
+
         const updatedGame: Game = {
           ...selectedGame,
           sets: result.sets,
-          status: result.status,
-          finalScore: result.finalScore || undefined
+          status: gameStatus,
+          finalScore: finalScore
         };
 
         setGames(games.map(game => 
@@ -398,11 +442,14 @@ function App() {
         setShowSetScoreModal(false);
         setSetScore({ team: 0, opponent: 0 });
 
-        if (result.status === 'in-progress') {
-          setCurrentSetNumber(prev => prev + 1);
-          setActiveTab('games');
+        if (gameStatus === 'in-progress') {
+          if (currentSetNumber < 5) {
+            setCurrentSetNumber(prev => prev + 1);
+            setActiveTab('games');
+          }
         } else {
-          alert(`Game Complete! ${result.status === 'win' ? 'Your team won!' : 'Your team lost.'} Final score: ${updatedGame.finalScore?.team}-${updatedGame.finalScore?.opponent}`);
+          const winningTeam = gameStatus === 'win' ? 'Your team' : 'Opponent';
+          alert(`Game Complete! ${winningTeam} won! Final sets: ${setsWon.team}-${setsWon.opponent}`);
           setActiveTab('games');
         }
       } catch (error) {
@@ -664,13 +711,11 @@ function App() {
                 <div className="flex items-center space-x-2">
                   {game.status !== 'in-progress' ? (
                     <div className="flex flex-col items-end">
-                      <span className={`px-3 py-1 rounded-full text-sm ${
-                        game.status === 'win' 
-                          ? 'bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300'
-                          : 'bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300'
-                      }`}>
-                        {game.status === 'win' ? 'Win' : 'Loss'}
-                      </span>
+                      {game.status === 'win' ? (
+                        <Check className="w-5 h-5 text-green-500 dark:text-green-400" />
+                      ) : (
+                        <XCircle className="w-5 h-5 text-red-500 dark:text-red-400" />
+                      )}
                       {game.finalScore && (
                         <span className="mt-1 text-sm font-medium dark:text-white">
                           {game.finalScore.team} - {game.finalScore.opponent}
@@ -678,9 +723,7 @@ function App() {
                       )}
                     </div>
                   ) : (
-                    <span className="px-3 py-1 rounded-full text-sm border border-yellow-500 text-yellow-500 dark:border-yellow-400 dark:text-yellow-400">
-                      In Progress
-                    </span>
+                    <CircleDot className="w-5 h-5 text-yellow-500 dark:text-yellow-400" />
                   )}
                   <button
                     onClick={(e) => {
@@ -745,7 +788,7 @@ function App() {
                       </div>
                     </div>
                   ))}
-                  {game.status === 'in-progress' && game.sets.length < 4 && (
+                  {game.status === 'in-progress' && game.sets.length < 5 && (
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
