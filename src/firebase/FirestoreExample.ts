@@ -265,27 +265,47 @@ async function updateGameSet(gameId: string, set: Set) {
     
     updatedSets = updatedSets.sort((a, b) => a.number - b.number);
 
-    // Calculate game status
-    const teamSets = updatedSets.filter(s => 
-      s.score && s.score.team > s.score.opponent
-    ).length;
-    const opponentSets = updatedSets.filter(s => 
-      s.score && s.score.opponent > s.score.team
-    ).length;
+    // Calculate sets won by each team
+    const setsWon = updatedSets.reduce(
+      (acc, currentSet) => {
+        if (currentSet.score) {
+          if (currentSet.score.team > currentSet.score.opponent) {
+            acc.team++;
+          } else if (currentSet.score.opponent > currentSet.score.team) {
+            acc.opponent++;
+          }
+        }
+        return acc;
+      },
+      { team: 0, opponent: 0 }
+    );
     
     let status: 'win' | 'loss' | 'in-progress' = 'in-progress';
     let finalScore = null;
 
-    // Must play exactly 4 sets before determining winner
-    if (updatedSets.length === 4) {
-      if (teamSets >= 3) {
-        status = 'win';
-        finalScore = { team: teamSets, opponent: opponentSets };
-      } else if (opponentSets >= 3) {
-        status = 'loss';
-        finalScore = { team: teamSets, opponent: opponentSets };
+    // Game status logic:
+    // 1. Always play 4 sets
+    // 2. If after 4 sets it's tied 2-2, play fifth set
+    // 3. If one team wins 3 sets, they win the match but still play 4th set
+    if (updatedSets.length === 5) {
+      // Fifth set is decisive
+      if (set.score) {
+        status = set.score.team > set.score.opponent ? 'win' : 'loss';
+        finalScore = {
+          team: setsWon.team + (set.score.team > set.score.opponent ? 1 : 0),
+          opponent: setsWon.opponent + (set.score.opponent > set.score.team ? 1 : 0)
+        };
       }
-      // If neither team has 3 sets after 4 sets, game remains in progress
+    } else if (updatedSets.length === 4) {
+      // After 4 sets
+      if (setsWon.team === 2 && setsWon.opponent === 2) {
+        // Tied 2-2, need fifth set
+        status = 'in-progress';
+      } else {
+        // One team has won 3 sets
+        status = setsWon.team > setsWon.opponent ? 'win' : 'loss';
+        finalScore = setsWon;
+      }
     }
 
     const updateData: any = {

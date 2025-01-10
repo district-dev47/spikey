@@ -400,7 +400,7 @@ function App() {
           (acc, set) => {
             if (set.score) {
               if (set.score.team > set.score.opponent) acc.team++;
-              else acc.opponent++;
+              else if (set.score.opponent > set.score.team) acc.opponent++;
             }
             return acc;
           },
@@ -411,20 +411,23 @@ function App() {
         let gameStatus: 'win' | 'loss' | 'in-progress' = 'in-progress';
         let finalScore = undefined;
 
-        if (setsWon.team === 3 || setsWon.opponent === 3) {
-          // Game is complete
-          gameStatus = setsWon.team > setsWon.opponent ? 'win' : 'loss';
-          finalScore = setsWon;
-        } else if (currentSetNumber === 4) {
-          // Check if fifth set is needed
+        // Game status logic
+        if (currentSetNumber === 4) {
           if (setsWon.team === 2 && setsWon.opponent === 2) {
-            // Game continues to fifth set
+            // Tied after 4 sets, need fifth set
             gameStatus = 'in-progress';
           } else {
-            // One team has already won 3 sets
+            // One team has already won 3 sets, but we still played the 4th set
             gameStatus = setsWon.team > setsWon.opponent ? 'win' : 'loss';
             finalScore = setsWon;
           }
+        } else if (currentSetNumber === 5) {
+          // Fifth set is decisive
+          gameStatus = setScore.team > setScore.opponent ? 'win' : 'loss';
+          finalScore = {
+            team: setsWon.team + (setScore.team > setScore.opponent ? 1 : 0),
+            opponent: setsWon.opponent + (setScore.opponent > setScore.team ? 1 : 0)
+          };
         }
 
         const updatedGame: Game = {
@@ -434,22 +437,30 @@ function App() {
           finalScore: finalScore
         };
 
-        setGames(games.map(game => 
-          game.id === selectedGame.id ? updatedGame : game
-        ));
-
+        // Update both the games state and selected game
+        setGames(prevGames => 
+          prevGames.map(game => 
+            game.id === selectedGame.id ? updatedGame : game
+          )
+        );
         setSelectedGame(updatedGame);
+
         setShowSetScoreModal(false);
         setSetScore({ team: 0, opponent: 0 });
 
         if (gameStatus === 'in-progress') {
-          if (currentSetNumber < 5) {
+          if (currentSetNumber === 4 && setsWon.team === 2 && setsWon.opponent === 2) {
+            // If it's 2-2 after 4 sets, proceed to fifth set
+            setCurrentSetNumber(5);
+            setActiveTab('games');
+          } else if (currentSetNumber < 4) {
+            // Always proceed to next set until 4 sets are played
             setCurrentSetNumber(prev => prev + 1);
             setActiveTab('games');
           }
         } else {
           const winningTeam = gameStatus === 'win' ? 'Your team' : 'Opponent';
-          alert(`Game Complete! ${winningTeam} won! Final sets: ${setsWon.team}-${setsWon.opponent}`);
+          alert(`Game Complete! ${winningTeam} won! Final sets: ${finalScore?.team}-${finalScore?.opponent}`);
           setActiveTab('games');
         }
       } catch (error) {
@@ -744,7 +755,9 @@ function App() {
                   <h4 className="text-sm font-medium dark:text-white mb-2">Set Details</h4>
                   {game.sets.map((set, index) => (
                     <div key={index} className="flex items-center justify-between p-2 bg-gray-50 dark:bg-secondary-dark rounded-lg">
-                      <span className="text-sm font-medium dark:text-white">Set {set.number}</span>
+                      <span className="text-sm font-medium dark:text-white">
+                        Set {set.number}{set.number === 5 ? ' (Tie Break)' : ''}
+                      </span>
                       <div className="flex items-center space-x-3">
                         {set.score ? (
                           <span className={`font-semibold ${
@@ -788,18 +801,26 @@ function App() {
                       </div>
                     </div>
                   ))}
-                  {game.status === 'in-progress' && game.sets.length < 5 && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setSelectedGame(game);
-                        setCurrentSetNumber(game.sets.length + 1);
-                        setShowLineupModal(true);
-                      }}
-                      className="w-full p-2 text-center text-primary text-sm border border-primary/30 rounded-lg mt-2"
-                    >
-                      Set {game.sets.length + 1} Lineup
-                    </button>
+                  {game.status === 'in-progress' && (
+                    (game.sets.length < 4 || (game.sets.length === 4 && 
+                      game.sets.reduce((acc, set) => 
+                        set.score?.team !== undefined && set.score?.opponent !== undefined && 
+                        set.score.team > set.score.opponent ? acc + 1 : acc, 0) === 2 && 
+                        game.sets.reduce((acc, set) => 
+                          set.score?.team !== undefined && set.score?.opponent !== undefined && 
+                          set.score.opponent > set.score.team ? acc + 1 : acc, 0) === 2)) && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedGame(game);
+                            setCurrentSetNumber(game.sets.length + 1);
+                            setShowLineupModal(true);
+                          }}
+                          className="w-full p-2 text-center text-primary text-sm border border-primary/30 rounded-lg mt-2"
+                        >
+                          {game.sets.length === 4 ? 'Set 5 (Tie Break) Lineup' : `Set ${game.sets.length + 1} Lineup`}
+                        </button>
+                      )
                   )}
                 </div>
               )}
