@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Trophy, Users, Calendar, BarChart3, Sun, Moon, ChevronRight, X, Plus, Edit, UserPlus, ArrowLeftRight, Minus } from 'lucide-react';
+import { Trophy, Users, Calendar, BarChart3, Sun, Moon, ChevronRight, X, Plus, Edit, UserPlus, ArrowLeftRight, Minus, LogOut } from 'lucide-react';
 import { createTeam, getAllTeams, addPlayerToTeam, getTeamPlayers, deleteTeam, deletePlayer, syncTeamPlayerCount, createGame, updateGameSet, getAllGames, deleteGame } from './firebase/FirestoreExample';
-import { db } from './firebase/firebase';
+import { db, auth, logOut } from './firebase/firebase';
+import { onAuthStateChanged, User } from 'firebase/auth';
 import StatsPage from './components/StatsPage';
+import Login from './components/Login';
 
 interface Player {
   id: string;
@@ -143,6 +145,9 @@ function App() {
     'Defensive Specialist'
   ];
 
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
+
   useEffect(() => {
     document.documentElement.classList.add('dark');
 
@@ -164,8 +169,10 @@ function App() {
 
   useEffect(() => {
     const fetchTeams = async () => {
+      if (!user) return; // Don't fetch if no user is logged in
+      
       try {
-        const fetchedTeams = await getAllTeams();
+        const fetchedTeams = await getAllTeams(user.uid);
         
         // Sync player counts for all teams
         for (const team of fetchedTeams) {
@@ -173,7 +180,7 @@ function App() {
         }
         
         // Fetch teams again to get updated counts
-        const updatedTeams = await getAllTeams();
+        const updatedTeams = await getAllTeams(user.uid);
         setTeams(updatedTeams);
         
         // Fetch players for each team
@@ -190,12 +197,14 @@ function App() {
     };
 
     fetchTeams();
-  }, []);
+  }, [user]); // Add user as dependency
 
   useEffect(() => {
     const fetchGames = async () => {
+      if (!user) return; // Don't fetch if no user is logged in
+      
       try {
-        const fetchedGames = await getAllGames();
+        const fetchedGames = await getAllGames(user.uid);
         setGames(fetchedGames);
       } catch (error) {
         console.error("Error fetching games:", error);
@@ -204,21 +213,40 @@ function App() {
     };
 
     fetchGames();
+  }, [user]); // Add user as dependency
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setUser(user);
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
   }, []);
 
+  const handleLogout = async () => {
+    try {
+      await logOut();
+    } catch (error) {
+      console.error('Error logging out:', error);
+    }
+  };
+
   const handleAddTeam = async () => {
-    if (newTeamName.trim()) {
+    if (newTeamName.trim() && user) {
       try {
         const docRef = await createTeam({
           name: newTeamName.trim(),
           playerCount: 0,
-          createdAt: new Date()
+          createdAt: new Date(),
+          userId: user.uid
         });
 
         const newTeam = {
           id: docRef.id,
           name: newTeamName.trim(),
-          playerCount: 0
+          playerCount: 0,
+          userId: user.uid
         };
         
         setTeams([...teams, newTeam]);
@@ -229,14 +257,13 @@ function App() {
         console.log("Team created successfully with ID:", docRef.id);
       } catch (error) {
         console.error("Error creating team:", error);
-        // Add user feedback here
         alert("Failed to create team. Please try again.");
       }
     }
   };
 
   const handleAddPlayer = async () => {
-    if (selectedTeam && newPlayer.name && newPlayer.number) {
+    if (selectedTeam && newPlayer.name && newPlayer.number && user) {
       try {
         await addPlayerToTeam(selectedTeam, newPlayer);
         
@@ -248,7 +275,7 @@ function App() {
         setPlayers(updatedPlayers);
         
         // Fetch updated team data to get new player count
-        const fetchedTeams = await getAllTeams();
+        const fetchedTeams = await getAllTeams(user.uid);
         setTeams(fetchedTeams);
         
         setNewPlayer({ id: '', name: '', number: '', position: 'Setter' });
@@ -261,7 +288,7 @@ function App() {
   };
 
   const handleAddGame = async () => {
-    if (newGame.teamId && newGame.opponent) {
+    if (newGame.teamId && newGame.opponent && user) {
       try {
         // Create initial game data
         const newGameData = {
@@ -270,6 +297,7 @@ function App() {
           date: new Date().toISOString().split('T')[0],
           status: 'in-progress' as const,
           sets: [] as Set[],
+          userId: user.uid,
           createdAt: new Date()
         };
 
@@ -285,7 +313,6 @@ function App() {
         setNewGame({ teamId: '', opponent: '' });
         setShowNewGameModal(false);
         setCurrentSetNumber(1);
-        // Show lineup modal after creating game
         setShowLineupModal(true);
       } catch (error) {
         console.error("Error creating game:", error);
@@ -388,7 +415,7 @@ function App() {
   const handleDeletePlayer = async (teamId: string, playerId: string, playerName: string) => {
     const isConfirmed = window.confirm(`Are you sure you want to remove ${playerName} from the team?`);
     
-    if (isConfirmed) {
+    if (isConfirmed && user) {
       try {
         await deletePlayer(teamId, playerId);
         
@@ -400,7 +427,7 @@ function App() {
         setPlayers(updatedPlayers);
         
         // Fetch updated team data to get new player count
-        const fetchedTeams = await getAllTeams();
+        const fetchedTeams = await getAllTeams(user.uid);
         setTeams(fetchedTeams);
       } catch (error) {
         console.error("Error deleting player:", error);
@@ -440,10 +467,11 @@ function App() {
       `Are you sure you want to delete the game against ${opponent}?`
     );
     
-    if (isConfirmed) {
+    if (isConfirmed && user) {
       try {
         await deleteGame(gameId);
-        setGames(prevGames => prevGames.filter(game => game.id !== gameId));
+        const fetchedGames = await getAllGames(user.uid);
+        setGames(fetchedGames);
         if (selectedGame?.id === gameId) {
           setSelectedGame(null);
         }
@@ -746,8 +774,21 @@ function App() {
       teams={teams}
       onTeamSelect={setSelectedTeam}
       games={games}
+      userId={user?.uid}
     />
   );
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-secondary-dark flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <Login onLoginSuccess={() => setUser(auth.currentUser)} />;
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-secondary-dark transition-colors duration-200">
@@ -764,8 +805,17 @@ function App() {
             >
               {darkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
             </button>
+            <button
+              onClick={handleLogout}
+              className="p-2 rounded-full hover:bg-white/10 transition-colors"
+              title="Logout"
+            >
+              <LogOut className="w-5 h-5" />
+            </button>
             <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center">
-              <span className="text-sm font-medium">JD</span>
+              <span className="text-sm font-medium">
+                {user.email?.charAt(0).toUpperCase()}
+              </span>
             </div>
           </div>
         </div>

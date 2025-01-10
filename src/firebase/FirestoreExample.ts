@@ -5,6 +5,7 @@ export interface TeamData {
   name: string;
   playerCount: number;
   createdAt: Date;
+  userId: string;
 }
 
 export interface PlayerData {
@@ -46,6 +47,11 @@ export interface Game {
   date: string;
   status: 'win' | 'loss' | 'in-progress';
   sets: Set[];
+  userId: string;
+  score?: {
+    team: number;
+    opponent: number;
+  };
   finalScore?: {
     team: number;
     opponent: number;
@@ -58,7 +64,8 @@ async function createTeam(teamData: TeamData): Promise<DocumentReference> {
     const teamToCreate = {
       name: teamData.name,
       createdAt: new Date(),
-      playerCount: 0  // Always start with 0 players
+      playerCount: 0,
+      userId: teamData.userId
     };
     
     const docRef = await addDoc(collection(db, 'teams'), teamToCreate);
@@ -69,9 +76,12 @@ async function createTeam(teamData: TeamData): Promise<DocumentReference> {
   }
 }
 
-async function getAllTeams() {
+async function getAllTeams(userId: string) {
   try {
-    const q = query(collection(db, 'teams'));
+    const q = query(
+      collection(db, 'teams'),
+      where('userId', '==', userId)
+    );
     const querySnapshot = await getDocs(q);
     const teams: Array<TeamData & { id: string }> = [];
     querySnapshot.forEach((doc) => {
@@ -179,25 +189,24 @@ async function syncTeamPlayerCount(teamId: string) {
 // Add these game functions
 async function createGame(gameData: Omit<Game, 'id'>) {
   try {
-    console.log('Creating game with data:', gameData);  // Debug log
+    console.log('Creating game with data:', gameData);
 
-    // Ensure sets array exists
     const gameToCreate = {
       ...gameData,
       sets: gameData.sets || [],
-      createdAt: new Date()
+      createdAt: new Date(),
+      userId: gameData.userId
     };
 
     const gameRef = await addDoc(collection(db, 'games'), gameToCreate);
-    console.log('Game created with ID:', gameRef.id);  // Debug log
+    console.log('Game created with ID:', gameRef.id);
 
-    // Verify the game was created
     const createdGame = await getDoc(gameRef);
     if (!createdGame.exists()) {
       throw new Error('Game creation failed - document not found');
     }
 
-    console.log('Created game data:', createdGame.data());  // Debug log
+    console.log('Created game data:', createdGame.data());
     return gameRef;
   } catch (e) {
     console.error("Error creating game:", e);
@@ -312,9 +321,12 @@ async function deleteGame(gameId: string) {
 }
 
 // Add this function to fetch all games
-async function getAllGames() {
+async function getAllGames(userId: string) {
   try {
-    const q = query(collection(db, 'games'));
+    const q = query(
+      collection(db, 'games'),
+      where('userId', '==', userId)
+    );
     const querySnapshot = await getDocs(q);
     const games: Game[] = [];
     querySnapshot.forEach((doc) => {
