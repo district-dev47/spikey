@@ -2,8 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { Trophy, Users, Calendar, BarChart3, Sun, Moon, ChevronRight, X, Plus, Edit } from 'lucide-react';
 import { createTeam, getAllTeams, addPlayerToTeam, getTeamPlayers, deleteTeam, deletePlayer, syncTeamPlayerCount, createGame, updateGameSet, getAllGames, deleteGame } from './firebase/FirestoreExample';
 import { db } from './firebase/firebase';
+import StatsPage from './components/StatsPage';
 
 interface Player {
+  id: string;
   name: string;
   number: string;
   position: string;
@@ -13,6 +15,10 @@ interface Team {
   id: string;
   name: string;
   playerCount: number;
+}
+
+interface LineupPlayer extends Player {
+  rotationPosition: number;
 }
 
 interface Set {
@@ -35,11 +41,10 @@ interface Game {
     team: number;
     opponent: number;
   };
-}
-
-interface LineupPlayer extends Player {
-  position: string;
-  rotationPosition: number;
+  finalScore?: {
+    team: number;
+    opponent: number;
+  };
 }
 
 function App() {
@@ -53,6 +58,7 @@ function App() {
   const [activeTab, setActiveTab] = useState<'team' | 'games' | 'stats'>('team');
   const [newTeamName, setNewTeamName] = useState('');
   const [newPlayer, setNewPlayer] = useState<Player>({
+    id: '',
     name: '',
     number: '',
     position: 'Setter'
@@ -92,17 +98,17 @@ function App() {
 
   const [players, setPlayers] = useState<Record<string, Player[]>>({
     '1': [
-      { name: 'Mike Johnson', number: '7', position: 'Setter' },
-      { name: 'Sarah Lee', number: '12', position: 'Outside Hitter' },
-      { name: 'Tom Wilson', number: '4', position: 'Middle Blocker' },
+      { id: '1', name: 'Mike Johnson', number: '7', position: 'Setter' },
+      { id: '2', name: 'Sarah Lee', number: '12', position: 'Outside Hitter' },
+      { id: '3', name: 'Tom Wilson', number: '4', position: 'Middle Blocker' },
     ],
     '2': [
-      { name: 'Alex Chen', number: '9', position: 'Libero' },
-      { name: 'Emma Davis', number: '5', position: 'Outside Hitter' },
+      { id: '4', name: 'Alex Chen', number: '9', position: 'Libero' },
+      { id: '5', name: 'Emma Davis', number: '5', position: 'Outside Hitter' },
     ],
     '3': [
-      { name: 'James Smith', number: '1', position: 'Setter' },
-      { name: 'Lisa Brown', number: '8', position: 'Middle Blocker' },
+      { id: '6', name: 'James Smith', number: '1', position: 'Setter' },
+      { id: '7', name: 'Lisa Brown', number: '8', position: 'Middle Blocker' },
     ],
   });
 
@@ -149,7 +155,7 @@ function App() {
         setTeams(updatedTeams);
         
         // Fetch players for each team
-        const playersObj = {};
+        const playersObj: Record<string, Player[]> = {};
         for (const team of updatedTeams) {
           const teamPlayers = await getTeamPlayers(team.id);
           playersObj[team.id] = teamPlayers;
@@ -223,7 +229,7 @@ function App() {
         const fetchedTeams = await getAllTeams();
         setTeams(fetchedTeams);
         
-        setNewPlayer({ name: '', number: '', position: 'Setter' });
+        setNewPlayer({ id: '', name: '', number: '', position: 'Setter' });
         setShowNewPlayerModal(false);
       } catch (error) {
         console.error("Error adding player:", error);
@@ -276,11 +282,11 @@ function App() {
 
         const result = await updateGameSet(selectedGame.id, newSet);
         
-        const updatedGame = {
+        const updatedGame: Game = {
           ...selectedGame,
           sets: result.sets,
           status: result.status,
-          finalScore: result.finalScore
+          finalScore: result.finalScore || undefined
         };
 
         setGames(prevGames => 
@@ -290,9 +296,7 @@ function App() {
         setSelectedGame(updatedGame);
         setShowLineupModal(false);
         setCurrentLineup([]);
-        // Return to games overview after setting lineup
         setActiveTab('games');
-        // Show score modal for the first set
         setShowSetScoreModal(true);
       } catch (error) {
         console.error("Error setting lineup:", error);
@@ -330,11 +334,11 @@ function App() {
 
         const result = await updateGameSet(selectedGame.id, newSet);
 
-        const updatedGame = {
+        const updatedGame: Game = {
           ...selectedGame,
           sets: result.sets,
           status: result.status,
-          finalScore: result.finalScore
+          finalScore: result.finalScore || undefined
         };
 
         setGames(games.map(game => 
@@ -347,12 +351,9 @@ function App() {
 
         if (result.status === 'in-progress') {
           setCurrentSetNumber(prev => prev + 1);
-          // Return to games overview
           setActiveTab('games');
         } else {
-          // Game is complete
-          alert(`Game Complete! ${result.status === 'win' ? 'Your team won!' : 'Your team lost.'} Final score: ${result.finalScore?.team}-${result.finalScore?.opponent}`);
-          // Return to games overview
+          alert(`Game Complete! ${result.status === 'win' ? 'Your team won!' : 'Your team lost.'} Final score: ${updatedGame.finalScore?.team}-${updatedGame.finalScore?.opponent}`);
           setActiveTab('games');
         }
       } catch (error) {
@@ -647,6 +648,15 @@ function App() {
     </div>
   );
 
+  const renderStatsContent = () => (
+    <StatsPage 
+      selectedTeam={selectedTeam} 
+      players={players} 
+      teams={teams}
+      onTeamSelect={setSelectedTeam}
+    />
+  );
+
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-secondary-dark transition-colors duration-200">
       <header className="bg-secondary dark:bg-secondary-dark text-white p-4 fixed w-full top-0 z-10">
@@ -672,6 +682,7 @@ function App() {
       <main className="pt-16 pb-20">
         {activeTab === 'team' && renderTeamContent()}
         {activeTab === 'games' && renderGamesContent()}
+        {activeTab === 'stats' && renderStatsContent()}
       </main>
 
       <nav className="fixed bottom-0 w-full bg-white dark:bg-secondary border-t dark:border-gray-700">
