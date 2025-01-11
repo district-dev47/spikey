@@ -612,22 +612,22 @@ function App() {
   const renderTeamContent = () => (
     <>
       <div className="p-4 grid grid-cols-2 gap-4">
-        <div className="bg-white dark:bg-secondary/50 rounded-xl p-4 shadow-sm">
-          <h3 className="text-sm text-gray-500 dark:text-gray-400">Active Players</h3>
+        <div className="bg-white dark:bg-secondary/50 rounded-xl p-4 shadow-lg">
+          <h3 className="text-sm text-gray-600 dark:text-gray-400">Active Players</h3>
           <p className="text-2xl font-bold text-primary">{teams.reduce((sum, team) => sum + team.playerCount, 0)}</p>
         </div>
-        <div className="bg-white dark:bg-secondary/50 rounded-xl p-4 shadow-sm">
-          <h3 className="text-sm text-gray-500 dark:text-gray-400">Active Teams</h3>
+        <div className="bg-white dark:bg-secondary/50 rounded-xl p-4 shadow-lg">
+          <h3 className="text-sm text-gray-600 dark:text-gray-400">Active Teams</h3>
           <p className="text-2xl font-bold text-primary">{teams.length}</p>
         </div>
       </div>
 
       <section className="p-4">
         <div className="flex justify-between items-center mb-3">
-          <h2 className="text-lg font-semibold dark:text-white">My Teams</h2>
+          <h2 className="text-lg font-semibold text-gray-800 dark:text-white">My Teams</h2>
           <button 
             onClick={() => setShowNewTeamModal(true)}
-            className="text-primary text-sm font-medium"
+            className="text-primary text-sm font-medium hover:text-primary/80 transition-colors"
           >
             + New Team
           </button>
@@ -636,19 +636,19 @@ function App() {
           {teams.map((team) => (
             <div
               key={team.id}
-              className={`w-full bg-white dark:bg-secondary/50 rounded-xl p-4 shadow-sm 
+              className={`w-full bg-white dark:bg-secondary/50 rounded-xl p-4 shadow-lg hover:shadow-xl transition-all 
                 ${selectedTeam === team.id ? 'ring-2 ring-primary dark:ring-primary' : ''}`}
             >
               <div className="flex items-center justify-between">
                 <button
-                  onClick={() => setSelectedTeam(team.id)}
+                  onClick={() => setSelectedTeam(team.id === selectedTeam ? null : team.id)}
                   className="flex-1 text-left group"
                 >
-                  <h3 className={`font-medium dark:text-white 
+                  <h3 className={`font-medium text-gray-800 dark:text-white 
                     ${selectedTeam === team.id ? 'text-primary dark:text-primary' : ''}`}>
                     {team.name}
                   </h3>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
                     {team.playerCount} players
                   </p>
                 </button>
@@ -672,21 +672,21 @@ function App() {
       {selectedTeam && (
         <section className="p-4">
           <div className="flex justify-between items-center mb-3">
-            <h2 className="text-lg font-semibold dark:text-white">Team Roster</h2>
+            <h2 className="text-lg font-semibold text-gray-800 dark:text-white">Team Roster</h2>
             <button 
               onClick={() => setShowNewPlayerModal(true)}
-              className="text-primary text-sm font-medium"
+              className="text-primary text-sm font-medium hover:text-primary/80 transition-colors"
             >
               + Add Player
             </button>
           </div>
-          <div className="bg-white dark:bg-secondary/50 rounded-xl p-4 shadow-sm">
+          <div className="bg-white dark:bg-secondary/50 rounded-xl p-4 shadow-lg">
             <div className="space-y-4">
               {players[selectedTeam].map((player) => (
                 <div key={player.id} className="flex items-center justify-between border-b dark:border-gray-700 pb-2">
                   <div>
-                    <p className="font-medium dark:text-white">{player.name}</p>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">{player.position}</p>
+                    <p className="font-medium text-gray-800 dark:text-white">{player.name}</p>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">{player.position}</p>
                   </div>
                   <div className="flex items-center space-x-3">
                     <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center">
@@ -729,7 +729,7 @@ function App() {
           return (
             <div 
               key={game.id} 
-              className="bg-white dark:bg-secondary/50 rounded-xl p-4 shadow-sm cursor-pointer"
+              className="bg-white dark:bg-secondary/50 rounded-xl p-4 shadow-md hover:shadow-lg transition-shadow cursor-pointer"
               onClick={() => setSelectedGame(isSelected ? null : game)}
             >
               <div className="flex justify-between items-start">
@@ -862,7 +862,7 @@ function App() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-secondary-dark flex items-center justify-center">
+      <div className="min-h-screen bg-gray-200 dark:bg-secondary-dark flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
       </div>
     );
@@ -873,8 +873,8 @@ function App() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-secondary-dark transition-colors duration-200">
-      <header className="bg-secondary dark:bg-secondary-dark text-white p-4 fixed w-full top-0 z-10">
+    <div className="min-h-screen bg-gray-200 dark:bg-secondary-dark transition-colors duration-200">
+      <header className="bg-white dark:bg-secondary text-gray-800 dark:text-white p-4 fixed w-full top-0 z-10 shadow-md">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-2">
             <Trophy className="w-8 h-8 text-primary" />
@@ -883,13 +883,13 @@ function App() {
           <div className="flex items-center space-x-4">
             <button
               onClick={() => setDarkMode(!darkMode)}
-              className="p-2 rounded-full hover:bg-white/10 transition-colors"
+              className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-white/10 transition-colors"
             >
               {darkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
             </button>
             <button
               onClick={handleLogout}
-              className="p-2 rounded-full hover:bg-white/10 transition-colors"
+              className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-white/10 transition-colors"
               title="Logout"
             >
               <LogOut className="w-5 h-5" />
@@ -909,25 +909,25 @@ function App() {
         {activeTab === 'stats' && renderStatsContent()}
       </main>
 
-      <nav className="fixed bottom-0 w-full bg-white dark:bg-secondary border-t dark:border-gray-700">
+      <nav className="fixed bottom-0 w-full bg-white dark:bg-secondary border-t dark:border-gray-700 shadow-lg">
         <div className="flex justify-around p-2">
           <button 
             onClick={() => setActiveTab('team')}
-            className={`flex flex-col items-center ${activeTab === 'team' ? 'text-primary' : 'text-gray-400 dark:text-gray-500'}`}
+            className={`flex flex-col items-center ${activeTab === 'team' ? 'text-primary' : 'text-gray-500 dark:text-gray-500'}`}
           >
             <Users className="w-6 h-6" />
             <span className="text-xs mt-1">Team</span>
           </button>
           <button
             onClick={() => setActiveTab('games')}
-            className={`flex flex-col items-center ${activeTab === 'games' ? 'text-primary' : 'text-gray-400 dark:text-gray-500'}`}
+            className={`flex flex-col items-center ${activeTab === 'games' ? 'text-primary' : 'text-gray-500 dark:text-gray-500'}`}
           >
             <Calendar className="w-6 h-6" />
             <span className="text-xs mt-1">Games</span>
           </button>
           <button
             onClick={() => setActiveTab('stats')}
-            className={`flex flex-col items-center ${activeTab === 'stats' ? 'text-primary' : 'text-gray-400 dark:text-gray-500'}`}
+            className={`flex flex-col items-center ${activeTab === 'stats' ? 'text-primary' : 'text-gray-500 dark:text-gray-500'}`}
           >
             <BarChart3 className="w-6 h-6" />
             <span className="text-xs mt-1">Stats</span>
@@ -937,7 +937,7 @@ function App() {
 
       {showNewTeamModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-secondary rounded-xl p-6 w-[90%] max-w-md">
+          <div className="bg-white dark:bg-secondary rounded-xl p-6 w-[90%] max-w-md shadow-xl">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-semibold dark:text-white">Create New Team</h3>
               <button 
