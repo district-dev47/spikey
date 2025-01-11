@@ -96,45 +96,11 @@ function App() {
     currentScore: { team: 0, opponent: 0 }
   });
 
-  const [teams, setTeams] = useState<Team[]>([
-    { id: '1', name: 'Thunder Hawks', playerCount: 12 },
-    { id: '2', name: 'Sky Strikers', playerCount: 10 },
-    { id: '3', name: 'Lightning Spikers', playerCount: 14 },
-  ]);
+  const [teams, setTeams] = useState<Team[]>([]);
 
-  const [games, setGames] = useState<Game[]>([
-    {
-      id: '1',
-      teamId: '1',
-      opponent: 'Blazing Spikes',
-      date: '2024-03-15',
-      status: 'win',
-      sets: [
-        {
-          number: 1,
-          lineup: [],
-          score: { team: 25, opponent: 20 }
-        }
-      ],
-      score: { team: 3, opponent: 1 }
-    }
-  ]);
+  const [games, setGames] = useState<Game[]>([]);
 
-  const [players, setPlayers] = useState<Record<string, Player[]>>({
-    '1': [
-      { id: '1', name: 'Mike Johnson', number: '7', position: 'Setter' },
-      { id: '2', name: 'Sarah Lee', number: '12', position: 'Outside Hitter' },
-      { id: '3', name: 'Tom Wilson', number: '4', position: 'Middle Blocker' },
-    ],
-    '2': [
-      { id: '4', name: 'Alex Chen', number: '9', position: 'Libero' },
-      { id: '5', name: 'Emma Davis', number: '5', position: 'Outside Hitter' },
-    ],
-    '3': [
-      { id: '6', name: 'James Smith', number: '1', position: 'Setter' },
-      { id: '7', name: 'Lisa Brown', number: '8', position: 'Middle Blocker' },
-    ],
-  });
+  const [players, setPlayers] = useState<Record<string, Player[]>>({});
 
   const positions = [
     'Setter',
