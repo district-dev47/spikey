@@ -1,4 +1,4 @@
-import { collection, addDoc, getDocs, query, doc, updateDoc, deleteDoc, getDoc, DocumentReference, where } from 'firebase/firestore';
+import { collection, addDoc, getDocs, query, doc, updateDoc, deleteDoc, getDoc, DocumentReference, where, writeBatch } from 'firebase/firestore';
 import { db } from './firebase';
 
 export interface TeamData {
@@ -97,7 +97,7 @@ async function getAllTeams(userId: string) {
 async function addPlayerToTeam(teamId: string, playerData: PlayerData) {
   try {
     // First add the player
-    const playerRef = await addDoc(collection(db, `teams/${teamId}/players`), {
+    const playerRef = await addDoc(collection(db, 'teams', teamId, 'players'), {
       ...playerData,
       joinedAt: new Date()
     });
@@ -121,7 +121,7 @@ async function addPlayerToTeam(teamId: string, playerData: PlayerData) {
 
 async function getTeamPlayers(teamId: string) {
   try {
-    const q = query(collection(db, `teams/${teamId}/players`));
+    const q = query(collection(db, 'teams', teamId, 'players'));
     const querySnapshot = await getDocs(q);
     const players: Array<PlayerData & { id: string }> = [];
     querySnapshot.forEach((doc) => {
@@ -137,7 +137,7 @@ async function getTeamPlayers(teamId: string) {
 async function deletePlayer(teamId: string, playerId: string) {
   try {
     // Delete player document
-    await deleteDoc(doc(db, `teams/${teamId}/players`, playerId));
+    await deleteDoc(doc(db, 'teams', teamId, 'players', playerId));
     
     // Get the current number of players after deletion
     const players = await getTeamPlayers(teamId);
@@ -158,17 +158,45 @@ async function deletePlayer(teamId: string, playerId: string) {
 
 async function deleteTeam(teamId: string) {
   try {
-    // Delete all players in the team first
-    const players = await getTeamPlayers(teamId);
-    for (const player of players) {
-      await deleteDoc(doc(db, `teams/${teamId}/players`, player.id));
-    }
+    console.log('Starting team deletion process for teamId:', teamId);
+
+    // Verify team exists first
+    const teamRef = doc(db, 'teams', teamId);
+    const teamDoc = await getDoc(teamRef);
     
-    // Delete the team document
-    await deleteDoc(doc(db, 'teams', teamId));
+    if (!teamDoc.exists()) {
+      throw new Error(`Team with ID ${teamId} does not exist`);
+    }
+
+    // Get all players
+    console.log('Fetching players for team:', teamId);
+    const playersQuery = query(collection(db, 'teams', teamId, 'players'));
+    const playersSnapshot = await getDocs(playersQuery);
+    console.log(`Found ${playersSnapshot.size} players to delete`);
+    
+    // Delete each player document
+    const batch = writeBatch(db);
+    playersSnapshot.forEach((playerDoc) => {
+      batch.delete(playerDoc.ref);
+    });
+    
+    // Add team deletion to the batch
+    batch.delete(teamRef);
+    
+    // Commit the batch
+    console.log('Committing batch delete operation');
+    await batch.commit();
+    console.log('Team and players deleted successfully');
+    
     return true;
   } catch (e) {
     console.error("Error deleting team:", e);
+    if (e instanceof Error) {
+      console.error('Error details:', {
+        message: e.message,
+        stack: e.stack
+      });
+    }
     throw e;
   }
 }

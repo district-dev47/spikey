@@ -499,23 +499,41 @@ function App() {
       `Are you sure you want to delete ${teamName}?\nThis will also remove all players from this team.`
     );
     
-    if (isConfirmed) {
+    if (isConfirmed && user) {
       try {
+        console.log('Starting team deletion in handleDeleteTeam');
         await deleteTeam(teamId);
         
+        console.log('Team deleted successfully, updating UI');
         // Update local state
-        setTeams(teams.filter(t => t.id !== teamId));
-        const updatedPlayers = { ...players };
-        delete updatedPlayers[teamId];
-        setPlayers(updatedPlayers);
+        setTeams(prevTeams => prevTeams.filter(t => t.id !== teamId));
+        setPlayers(prevPlayers => {
+          const updatedPlayers = { ...prevPlayers };
+          delete updatedPlayers[teamId];
+          return updatedPlayers;
+        });
         
         // If the deleted team was selected, clear selection
         if (selectedTeam === teamId) {
           setSelectedTeam(null);
         }
+
+        // Fetch updated teams list
+        try {
+          const fetchedTeams = await getAllTeams(user.uid);
+          setTeams(fetchedTeams);
+          console.log('Teams list updated successfully');
+        } catch (fetchError) {
+          console.error('Error fetching updated teams:', fetchError);
+          // Don't throw here, as the deletion was successful
+        }
       } catch (error) {
         console.error("Error deleting team:", error);
-        alert("Failed to delete team. Please try again.");
+        if (error instanceof Error) {
+          alert(`Failed to delete team: ${error.message}`);
+        } else {
+          alert("Failed to delete team. Please try again.");
+        }
       }
     }
   };
