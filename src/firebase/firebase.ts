@@ -11,14 +11,9 @@ const firebaseConfig = {
   appId: "1:863973173293:web:554df79afc17d9fb3fb0a4"
 };
 
-// Initialize Firebase
 const app = initializeApp(firebaseConfig);
-
-// Initialize Firestore
-const db = getFirestore(app);
-
-// Initialize Auth
-const auth = getAuth(app);
+export const db = getFirestore(app);
+export const auth = getAuth(app);
 
 // Auth functions
 export const signUp = (email: string, password: string) => {
@@ -31,6 +26,4 @@ export const signIn = (email: string, password: string) => {
 
 export const logOut = () => {
   return signOut(auth);
-};
-
-export { db, auth }; 
+}; 

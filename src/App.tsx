@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Trophy, Users, Calendar, BarChart3, Sun, Moon, ChevronRight, X, Plus, Edit, UserPlus, ArrowLeftRight, Minus, LogOut, Check, CircleDot, XCircle } from 'lucide-react';
+import { Trophy, Users, Calendar, BarChart3, Sun, Moon, ChevronRight, X, Plus, Edit, UserPlus, ArrowLeftRight, Minus, LogOut, Check, CircleDot, XCircle, Dumbbell } from 'lucide-react';
 import { createTeam, getAllTeams, addPlayerToTeam, getTeamPlayers, deleteTeam, deletePlayer, syncTeamPlayerCount, createGame, updateGameSet, getAllGames, deleteGame } from './firebase/FirestoreExample';
 import { db, auth, logOut } from './firebase/firebase';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import StatsPage from './components/StatsPage';
 import Login from './components/Login';
+import Training from './components/Training';
+import { Tab } from '@headlessui/react';
 
 interface Player {
   id: string;
@@ -66,7 +68,7 @@ function App() {
   const [showLineupModal, setShowLineupModal] = useState(false);
   const [showSetScoreModal, setShowSetScoreModal] = useState(false);
   const [showSubstitutionModal, setShowSubstitutionModal] = useState(false);
-  const [activeTab, setActiveTab] = useState<'team' | 'games' | 'stats'>('team');
+  const [activeTab, setActiveTab] = useState<'team' | 'games' | 'stats' | 'training'>('team');
   const [newTeamName, setNewTeamName] = useState('');
   const [newPlayer, setNewPlayer] = useState<Player>({
     id: '',
@@ -601,7 +603,7 @@ function App() {
         <div className="space-y-3">
           {teams.map((team) => (
             <div
-              key={team.id}
+              key={team.id || `team-${team.name}`}
               className={`w-full bg-white dark:bg-secondary/50 rounded-xl p-4 shadow-lg hover:shadow-xl transition-all 
                 ${selectedTeam === team.id ? 'ring-2 ring-primary dark:ring-primary' : ''}`}
             >
@@ -648,8 +650,8 @@ function App() {
           </div>
           <div className="bg-white dark:bg-secondary/50 rounded-xl p-4 shadow-lg">
             <div className="space-y-4">
-              {players[selectedTeam].map((player) => (
-                <div key={player.id} className="flex items-center justify-between border-b dark:border-gray-700 pb-2">
+              {players[selectedTeam]?.map((player) => (
+                <div key={player.id || `player-${player.name}-${player.number}`} className="flex items-center justify-between border-b dark:border-gray-700 pb-2">
                   <div>
                     <p className="font-medium text-gray-800 dark:text-white">{player.name}</p>
                     <p className="text-sm text-gray-600 dark:text-gray-400">{player.position}</p>
@@ -873,6 +875,28 @@ function App() {
         {activeTab === 'team' && renderTeamContent()}
         {activeTab === 'games' && renderGamesContent()}
         {activeTab === 'stats' && renderStatsContent()}
+        {activeTab === 'training' && (
+          <Training 
+            teamId={selectedTeam || ''} 
+            userId={user?.uid || ''} 
+            players={players[selectedTeam || ''] || []}
+            teams={teams}
+            onTeamSelect={async (teamId) => {
+              setSelectedTeam(teamId);
+              if (teamId && !players[teamId]) {
+                try {
+                  const teamPlayers = await getTeamPlayers(teamId);
+                  setPlayers(prev => ({
+                    ...prev,
+                    [teamId]: teamPlayers
+                  }));
+                } catch (error) {
+                  console.error('Error fetching players:', error);
+                }
+              }
+            }}
+          />
+        )}
       </main>
 
       <nav className="fixed bottom-0 w-full bg-white dark:bg-secondary border-t dark:border-gray-700 shadow-lg">
@@ -897,6 +921,13 @@ function App() {
           >
             <BarChart3 className="w-6 h-6" />
             <span className="text-xs mt-1">Stats</span>
+          </button>
+          <button
+            onClick={() => setActiveTab('training')}
+            className={`flex flex-col items-center ${activeTab === 'training' ? 'text-primary' : 'text-gray-500 dark:text-gray-500'}`}
+          >
+            <Dumbbell className="w-6 h-6" />
+            <span className="text-xs mt-1">Training</span>
           </button>
         </div>
       </nav>
@@ -1359,6 +1390,7 @@ function App() {
           </div>
         </div>
       )}
+
     </div>
   );
 }
