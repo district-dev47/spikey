@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, addDoc, query, where, getDocs, updateDoc, doc } from 'firebase/firestore';
+import { collection, addDoc, query, where, getDocs, updateDoc, doc, deleteDoc } from 'firebase/firestore';
 import { db } from '../firebase/firebase';
 import { TrainingSession, TrainingAttendance } from '../types/training';
 import { Player } from '../types/player';
@@ -26,6 +26,8 @@ const Training: React.FC<TrainingProps> = ({ teamId, userId, players, teams, onT
     const [selectedTeamForNewSession, setSelectedTeamForNewSession] = useState<string>('');
     const [teamPlayers, setTeamPlayers] = useState<Player[]>([]);
     const [sessionPlayerCounts, setSessionPlayerCounts] = useState<{ [key: string]: number }>({});
+    const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false);
+    const [sessionToDelete, setSessionToDelete] = useState<TrainingSession | null>(null);
 
     // Consolidate player fetching into a single function
     const fetchPlayersForTeam = async (teamId: string) => {
@@ -261,6 +263,18 @@ const Training: React.FC<TrainingProps> = ({ teamId, userId, players, teams, onT
         return team ? team.name : '';
     };
 
+    // Add delete function
+    const deleteTrainingSession = async (session: TrainingSession) => {
+        try {
+            await deleteDoc(doc(db, 'training-sessions', session.id!));
+            setTrainingSessions(prev => prev.filter(s => s.id !== session.id));
+            setShowDeleteConfirmModal(false);
+            setSessionToDelete(null);
+        } catch (error) {
+            console.error('Error deleting training session:', error);
+        }
+    };
+
     return (
         <div className="p-4">
             <div className="flex justify-between items-center mb-4">
@@ -360,10 +374,20 @@ const Training: React.FC<TrainingProps> = ({ teamId, userId, players, teams, onT
                                         </span>
                                     </h3>
                                 </div>
-                                <div className="flex items-center space-x-2">
+                                <div className="flex items-center space-x-4">
                                     <span className="text-sm text-gray-500 dark:text-gray-400">
                                         {Object.values(attendanceMap[session.id] || {}).filter(present => present).length} / {sessionPlayerCounts[session.id] || 0} present
                                     </span>
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setSessionToDelete(session);
+                                            setShowDeleteConfirmModal(true);
+                                        }}
+                                        className="p-2 rounded-full hover:bg-red-50 text-red-500 dark:hover:bg-red-900/20"
+                                    >
+                                        <X className="w-4 h-4" />
+                                    </button>
                                 </div>
                             </div>
 
@@ -419,6 +443,42 @@ const Training: React.FC<TrainingProps> = ({ teamId, userId, players, teams, onT
                         </div>
                     ))}
             </div>
+
+            {/* Add confirmation modal */}
+            {showDeleteConfirmModal && sessionToDelete && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+                    <div className="bg-white dark:bg-secondary rounded-xl p-6 w-[90%] max-w-md shadow-xl">
+                        <h3 className="text-lg font-semibold dark:text-white mb-2">Delete Training Session</h3>
+                        <p className="text-gray-600 dark:text-gray-400 mb-4">
+                            Are you sure you want to delete the training session on{' '}
+                            {new Date(sessionToDelete.date).toLocaleDateString(undefined, {
+                                weekday: 'long',
+                                year: 'numeric',
+                                month: 'long',
+                                day: 'numeric'
+                            })}
+                            {' '}for team {getTeamName(sessionToDelete.teamId)}?
+                        </p>
+                        <div className="flex justify-end space-x-3">
+                            <button
+                                onClick={() => {
+                                    setShowDeleteConfirmModal(false);
+                                    setSessionToDelete(null);
+                                }}
+                                className="px-4 py-2 text-gray-500 dark:text-gray-400"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={() => deleteTrainingSession(sessionToDelete)}
+                                className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600"
+                            >
+                                Delete
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
