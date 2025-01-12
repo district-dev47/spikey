@@ -79,19 +79,18 @@ const Training: React.FC<TrainingProps> = ({ teamId, userId, players, teams, onT
                         ...playerDoc.data()
                     } as Player));
 
-                    // Store the player count for this session
                     playerCounts[doc.id] = teamPlayers.length;
 
-                    // Initialize attendance
+                    // Initialize all players as explicitly absent (false)
                     attendance[doc.id] = {};
                     teamPlayers.forEach(player => {
-                        attendance[doc.id][player.id] = false;
+                        attendance[doc.id][player.id] = false;  // Set initial state to false
                     });
 
-                    // Update with actual attendance
+                    // Then update with actual attendance records
                     const attendanceArray = session.attendance || [];
                     attendanceArray.forEach((record: TrainingAttendance) => {
-                        attendance[doc.id][record.playerId] = record.present;
+                        attendance[doc.id][record.playerId] = record.present;  // Update with stored state
                     });
                 }
 
@@ -199,6 +198,8 @@ const Training: React.FC<TrainingProps> = ({ teamId, userId, players, teams, onT
 
             const currentAttendance = session.attendance || [];
             const updatedAttendance = currentAttendance.filter(a => a.playerId !== playerId);
+            
+            // Always add an attendance record with explicit present/absent state
             updatedAttendance.push({
                 playerId,
                 present,
@@ -210,6 +211,7 @@ const Training: React.FC<TrainingProps> = ({ teamId, userId, players, teams, onT
                 attendance: updatedAttendance
             });
             
+            // Update local state with explicit state
             setAttendanceMap(prev => ({
                 ...prev,
                 [sessionId]: {
@@ -388,8 +390,8 @@ const Training: React.FC<TrainingProps> = ({ teamId, userId, players, teams, onT
                                                         updateAttendance(session.id!, player.id, true);
                                                     }}
                                                     className={`p-2 rounded-full ${
-                                                        attendanceMap[session.id]?.[player.id] 
-                                                            ? 'bg-green-100 text-green-600 dark:bg-green-900/20 dark:text-green-400' 
+                                                        attendanceMap[session.id]?.[player.id] === true
+                                                            ? 'bg-green-100 text-green-600 dark:bg-green-900/20 dark:text-green-400'
                                                             : 'hover:bg-gray-100 text-gray-400 dark:hover:bg-gray-700'
                                                     }`}
                                                 >
