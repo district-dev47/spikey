@@ -81,16 +81,17 @@ const Training: React.FC<TrainingProps> = ({ teamId, userId, players, teams, onT
 
                     playerCounts[doc.id] = teamPlayers.length;
 
-                    // Initialize all players as explicitly absent (false)
+                    // Initialize attendance without default state
                     attendance[doc.id] = {};
                     teamPlayers.forEach(player => {
-                        attendance[doc.id][player.id] = false;  // Set initial state to false
+                        // Don't set any default state
+                        attendance[doc.id][player.id] = undefined;
                     });
 
                     // Then update with actual attendance records
                     const attendanceArray = session.attendance || [];
                     attendanceArray.forEach((record: TrainingAttendance) => {
-                        attendance[doc.id][record.playerId] = record.present;  // Update with stored state
+                        attendance[doc.id][record.playerId] = record.present;
                     });
                 }
 
@@ -160,10 +161,10 @@ const Training: React.FC<TrainingProps> = ({ teamId, userId, players, teams, onT
 
             const newSessionWithId = { ...newSession, id: docRef.id };
 
-            // Initialize attendance for all players
-            const initialAttendance: { [key: string]: boolean } = {};
+            // Initialize attendance without default state
+            const initialAttendance: { [key: string]: boolean | undefined } = {};
             teamPlayers.forEach(player => {
-                initialAttendance[player.id] = false;
+                initialAttendance[player.id] = undefined;  // No default state
             });
 
             setAttendanceMap(prev => ({
