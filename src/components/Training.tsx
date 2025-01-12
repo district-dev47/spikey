@@ -25,6 +25,7 @@ const Training: React.FC<TrainingProps> = ({ teamId, userId, players, teams, onT
     const [showNewSessionModal, setShowNewSessionModal] = useState(false);
     const [selectedTeamForNewSession, setSelectedTeamForNewSession] = useState<string>('');
     const [teamPlayers, setTeamPlayers] = useState<Player[]>([]);
+    const [sessionPlayerCounts, setSessionPlayerCounts] = useState<{ [key: string]: number }>({});
 
     // Consolidate player fetching into a single function
     const fetchPlayersForTeam = async (teamId: string) => {
@@ -58,6 +59,7 @@ const Training: React.FC<TrainingProps> = ({ teamId, userId, players, teams, onT
                 const sessionsSnapshot = await getDocs(sessionsQuery);
                 const sessions: TrainingSession[] = [];
                 const attendance: { [key: string]: { [key: string]: boolean } } = {};
+                const playerCounts: { [key: string]: number } = {};
 
                 for (const doc of sessionsSnapshot.docs) {
                     const data = doc.data();
@@ -77,6 +79,9 @@ const Training: React.FC<TrainingProps> = ({ teamId, userId, players, teams, onT
                         ...playerDoc.data()
                     } as Player));
 
+                    // Store the player count for this session
+                    playerCounts[doc.id] = teamPlayers.length;
+
                     // Initialize attendance
                     attendance[doc.id] = {};
                     teamPlayers.forEach(player => {
@@ -92,6 +97,7 @@ const Training: React.FC<TrainingProps> = ({ teamId, userId, players, teams, onT
 
                 setTrainingSessions(sessions);
                 setAttendanceMap(attendance);
+                setSessionPlayerCounts(playerCounts);
             } catch (error) {
                 console.error('Error fetching training sessions:', error);
             }
@@ -164,6 +170,12 @@ const Training: React.FC<TrainingProps> = ({ teamId, userId, players, teams, onT
             setAttendanceMap(prev => ({
                 ...prev,
                 [docRef.id]: initialAttendance
+            }));
+
+            // Store the player count for the new session
+            setSessionPlayerCounts(prev => ({
+                ...prev,
+                [docRef.id]: teamPlayers.length
             }));
 
             setTrainingSessions(prev => [...prev, newSessionWithId]);
@@ -347,7 +359,7 @@ const Training: React.FC<TrainingProps> = ({ teamId, userId, players, teams, onT
                                 </div>
                                 <div className="flex items-center space-x-2">
                                     <span className="text-sm text-gray-500 dark:text-gray-400">
-                                        {Object.values(attendanceMap[session.id] || {}).filter(present => present).length} / {validPlayers.length} present
+                                        {Object.values(attendanceMap[session.id] || {}).filter(present => present).length} / {sessionPlayerCounts[session.id] || 0} present
                                     </span>
                                 </div>
                             </div>
