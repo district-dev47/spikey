@@ -22,7 +22,7 @@ const StatsPage: React.FC<StatsPageProps> = ({
   const totalGames = games.length;
   const wins = games.filter(game => game.status === 'win').length;
   const losses = games.filter(game => game.status === 'loss').length;
-  const winPercentage = totalGames > 0 ? ((wins / totalGames) * 100).toFixed(1) : '0';
+  const winPercentage = totalGames > 0 ? Math.round((wins / totalGames) * 100).toString() : '0';
 
   // Calculate team-specific statistics if a team is selected
   const teamGames = selectedTeam
@@ -31,7 +31,7 @@ const StatsPage: React.FC<StatsPageProps> = ({
   const teamWins = teamGames.filter(game => game.status === 'win').length;
   const teamLosses = teamGames.filter(game => game.status === 'loss').length;
   const teamWinPercentage = teamGames.length > 0
-    ? ((teamWins / teamGames.length) * 100).toFixed(1)
+    ? Math.round((teamWins / teamGames.length) * 100).toString()
     : '0';
 
   return (
@@ -68,7 +68,7 @@ const StatsPage: React.FC<StatsPageProps> = ({
           {teams.map(team => (
             <button
               key={team.id}
-              onClick={() => onTeamSelect(team.id)}
+              onClick={() => onTeamSelect(selectedTeam === team.id ? '' : team.id)}
               className={`w-full text-left p-3 rounded-lg transition-colors ${
                 selectedTeam === team.id
                   ? 'bg-primary/10 text-primary'
