@@ -45,25 +45,21 @@ const Training: React.FC<TrainingProps> = ({ teamId, userId, players, teams, onT
         }
     };
 
-    // Single effect to handle team/session changes
+    // Add effect to fetch all training sessions when component mounts
     useEffect(() => {
-        const fetchData = async () => {
-            if (!selectedTeamForNewSession) return;
+        const fetchAllTrainingSessions = async () => {
+            if (!userId) return;
 
             try {
-                // Fetch players first
-                const teamPlayersList = await fetchPlayersForTeam(selectedTeamForNewSession);
-
-                // Then fetch sessions
                 const sessionsQuery = query(
                     collection(db, 'training-sessions'),
-                    where('teamId', '==', selectedTeamForNewSession)
+                    where('userId', '==', userId)
                 );
                 const sessionsSnapshot = await getDocs(sessionsQuery);
                 const sessions: TrainingSession[] = [];
                 const attendance: { [key: string]: { [key: string]: boolean } } = {};
 
-                sessionsSnapshot.docs.forEach(doc => {
+                for (const doc of sessionsSnapshot.docs) {
                     const data = doc.data();
                     const session = {
                         id: doc.id,
@@ -72,9 +68,18 @@ const Training: React.FC<TrainingProps> = ({ teamId, userId, players, teams, onT
                     } as TrainingSession;
                     sessions.push(session);
 
+                    // Fetch players for this session's team
+                    const teamPlayersSnapshot = await getDocs(
+                        collection(db, `teams/${session.teamId}/players`)
+                    );
+                    const teamPlayers = teamPlayersSnapshot.docs.map(playerDoc => ({
+                        id: playerDoc.id,
+                        ...playerDoc.data()
+                    } as Player));
+
                     // Initialize attendance
                     attendance[doc.id] = {};
-                    teamPlayersList.forEach(player => {
+                    teamPlayers.forEach(player => {
                         attendance[doc.id][player.id] = false;
                     });
 
@@ -83,16 +88,34 @@ const Training: React.FC<TrainingProps> = ({ teamId, userId, players, teams, onT
                     attendanceArray.forEach((record: TrainingAttendance) => {
                         attendance[doc.id][record.playerId] = record.present;
                     });
-                });
+                }
 
                 setTrainingSessions(sessions);
                 setAttendanceMap(attendance);
             } catch (error) {
-                console.error('Error fetching data:', error);
+                console.error('Error fetching training sessions:', error);
             }
         };
 
-        fetchData();
+        fetchAllTrainingSessions();
+    }, [userId]); // Only depend on userId
+
+    // Modify the team selection effect to only fetch players
+    useEffect(() => {
+        const fetchTeamPlayers = async () => {
+            if (!selectedTeamForNewSession) {
+                setTeamPlayers([]);
+                return;
+            }
+
+            try {
+                await fetchPlayersForTeam(selectedTeamForNewSession);
+            } catch (error) {
+                console.error('Error fetching team players:', error);
+            }
+        };
+
+        fetchTeamPlayers();
     }, [selectedTeamForNewSession]);
 
     // Remove the separate effect for session selection
@@ -217,6 +240,12 @@ const Training: React.FC<TrainingProps> = ({ teamId, userId, players, teams, onT
         validPlayers
     });
 
+    // Add a helper function to get team name
+    const getTeamName = (teamId: string): string => {
+        const team = teams.find(t => t.id === teamId);
+        return team ? team.name : '';
+    };
+
     return (
         <div className="p-4">
             <div className="flex justify-between items-center mb-4">
@@ -302,14 +331,20 @@ const Training: React.FC<TrainingProps> = ({ teamId, userId, players, teams, onT
                             onClick={() => handleSessionClick(session)}
                         >
                             <div className="flex justify-between items-center mb-3">
-                                <h3 className="font-medium dark:text-white">
-                                    {new Date(session.date).toLocaleDateString(undefined, {
-                                        weekday: 'long',
-                                        year: 'numeric',
-                                        month: 'long',
-                                        day: 'numeric'
-                                    })}
-                                </h3>
+                                <div>
+                                    <h3 className="font-medium dark:text-white flex items-center">
+                                        {new Date(session.date).toLocaleDateString(undefined, {
+                                            weekday: 'long',
+                                            year: 'numeric',
+                                            month: 'long',
+                                            day: 'numeric'
+                                        })}
+                                        <span className="mx-2 text-gray-400">•</span>
+                                        <span className="text-gray-500 dark:text-gray-400">
+                                            {getTeamName(session.teamId)}
+                                        </span>
+                                    </h3>
+                                </div>
                                 <div className="flex items-center space-x-2">
                                     <span className="text-sm text-gray-500 dark:text-gray-400">
                                         {Object.values(attendanceMap[session.id] || {}).filter(present => present).length} / {validPlayers.length} present
