@@ -4,6 +4,8 @@ import { db } from '../firebase/firebase';
 import { TrainingSession, TrainingAttendance } from '../types/training';
 import { Player } from '../types/player';
 import { Plus, X, Check, ChevronDown, BarChart2, TrendingUp, TrendingDown } from 'lucide-react';
+import { Bar } from 'react-chartjs-2';
+import { chartOptions } from '../utils/chartConfig';
 
 interface TrainingProps {
     teamId: string;
