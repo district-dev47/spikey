@@ -43,6 +43,7 @@ const Training: React.FC<TrainingProps> = ({ teamId, userId, players, teams, onT
     const [showStatsModal, setShowStatsModal] = useState(false);
     const [isLoadingStats, setIsLoadingStats] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
+    const [showStats, setShowStats] = useState(false);
 
     // Add effect to fetch all training sessions when component mounts or teamId changes
     useEffect(() => {
@@ -412,21 +413,110 @@ const Training: React.FC<TrainingProps> = ({ teamId, userId, players, teams, onT
 
                 {/* Action Buttons - only show when a team is selected */}
                 {teamId && (
-                    <div className="flex justify-end space-x-2">
-                        <button
-                            onClick={() => setShowStatsModal(true)}
-                            className="flex items-center space-x-1 border border-primary text-primary px-3 py-1.5 rounded-lg hover:bg-primary/10 transition-colors"
-                        >
-                            <BarChart2 className="w-4 h-4" />
-                            <span>Stats</span>
-                        </button>
-                        <button
-                            onClick={() => setShowNewSessionModal(true)}
-                            className="flex items-center space-x-1 border border-primary text-primary px-3 py-1.5 rounded-lg hover:bg-primary/10 transition-colors"
-                        >
-                            <Plus className="w-4 h-4" />
-                            <span>New Session</span>
-                        </button>
+                    <div className="flex flex-col space-y-4">
+                        <div className="flex justify-end space-x-2">
+                            <button
+                                onClick={() => setShowStats(!showStats)}
+                                className={`flex items-center space-x-1 border px-3 py-1.5 rounded-lg transition-colors ${
+                                    showStats 
+                                        ? 'bg-primary text-white border-primary' 
+                                        : 'border-primary text-primary hover:bg-primary/10'
+                                }`}
+                            >
+                                <BarChart2 className="w-4 h-4" />
+                                <span>Stats</span>
+                            </button>
+                            <button
+                                onClick={() => setShowNewSessionModal(true)}
+                                className="flex items-center space-x-1 border border-primary text-primary px-3 py-1.5 rounded-lg hover:bg-primary/10 transition-colors"
+                            >
+                                <Plus className="w-4 h-4" />
+                                <span>New Session</span>
+                            </button>
+                        </div>
+
+                        {/* Stats Section - Now conditionally rendered based on showStats */}
+                        {teamId && showStats && (() => {
+                            const stats = calculateAttendanceStats();
+                            if (!stats) return null;
+
+                            return (
+                                <div className="space-y-6 mt-6">
+                                    {/* Team Attendance Overview */}
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div className="bg-white dark:bg-secondary/50 rounded-xl p-4 shadow-sm">
+                                            <h4 className="text-sm text-gray-500 dark:text-gray-400">Team Attendance Rate</h4>
+                                            <p className="text-2xl font-bold text-primary">
+                                                {stats.teamRate.toFixed(1)}%
+                                            </p>
+                                            <TrendingUp className="w-5 h-5 text-green-500 mt-1" />
+                                        </div>
+                                        <div className="bg-white dark:bg-secondary/50 rounded-xl p-4 shadow-sm">
+                                            <h4 className="text-sm text-gray-500 dark:text-gray-400">Last Session</h4>
+                                            <p className="text-2xl font-bold text-primary">
+                                                {stats.recentSessions[0]?.rate.toFixed(1)}%
+                                            </p>
+                                            <p className="text-sm text-gray-500 dark:text-gray-400">
+                                                {stats.recentSessions[0]?.presentCount}/{stats.recentSessions[0]?.totalCount} players
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    {/* Recent Sessions */}
+                                    <div className="bg-white dark:bg-secondary/50 rounded-xl p-4 shadow-sm">
+                                        <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+                                            Last 5 Sessions
+                                        </h4>
+                                        <div className="space-y-3">
+                                            {stats.recentSessions.map((session) => (
+                                                <div key={session.sessionId} className="flex justify-between items-center">
+                                                    <span className="text-sm text-gray-600 dark:text-gray-400">
+                                                        {session.date.toLocaleDateString()}
+                                                    </span>
+                                                    <div className="text-right">
+                                                        <span className="font-medium text-primary">
+                                                            {session.rate.toFixed(1)}%
+                                                        </span>
+                                                        <span className="text-sm text-gray-500 dark:text-gray-400 ml-2">
+                                                            ({session.presentCount}/{session.totalCount})
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    {/* Individual Player Stats */}
+                                    <div className="bg-white dark:bg-secondary/50 rounded-xl p-4 shadow-sm">
+                                        <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+                                            Player Attendance
+                                        </h4>
+                                        <div className="space-y-3">
+                                            {stats.playerStats
+                                                .sort((a, b) => b.attendanceRate - a.attendanceRate)
+                                                .map((player) => (
+                                                    <div key={player.id} className="flex justify-between items-center">
+                                                        <div>
+                                                            <span className="text-gray-800 dark:text-white">
+                                                                {player.name}
+                                                            </span>
+                                                            <span className="text-sm text-gray-500 dark:text-gray-400 ml-2">
+                                                                #{player.number}
+                                                            </span>
+                                                        </div>
+                                                        <div className="flex items-center space-x-2">
+                                                            <span className="font-medium text-primary">
+                                                                {player.attendanceRate.toFixed(1)}%
+                                                            </span>
+                                                            <TrendingUp className="w-4 h-4 text-green-500" />
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        })()}
                     </div>
                 )}
             </div>
@@ -537,112 +627,6 @@ const Training: React.FC<TrainingProps> = ({ teamId, userId, players, teams, onT
                                 )}
                             </div>
                         ))}
-                </div>
-            )}
-
-            {/* Stats Modal */}
-            {showStatsModal && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-                    <div className="bg-white dark:bg-secondary rounded-xl p-6 w-[90%] max-w-4xl shadow-xl">
-                        <div className="flex justify-between items-center mb-4">
-                            <h3 className="text-lg font-semibold dark:text-white">Training Statistics</h3>
-                            <button 
-                                onClick={() => setShowStatsModal(false)}
-                                className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-                            >
-                                <X className="w-5 h-5" />
-                            </button>
-                        </div>
-                        
-                        {/* Stats Content */}
-                        {isLoadingStats ? (
-                            <div className="flex items-center justify-center py-8">
-                                <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary"></div>
-                            </div>
-                        ) : (() => {
-                            const stats = calculateAttendanceStats();
-                            if (!stats) return (
-                                <p className="text-gray-500 dark:text-gray-400">No statistics available yet.</p>
-                            );
-
-                            return (
-                                <div className="space-y-6">
-                                    {/* Team Attendance Overview */}
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div className="bg-white dark:bg-secondary/50 rounded-xl p-4 shadow-sm">
-                                            <h4 className="text-sm text-gray-500 dark:text-gray-400">Team Attendance Rate</h4>
-                                            <p className="text-2xl font-bold text-primary">
-                                                {stats.teamRate.toFixed(1)}%
-                                            </p>
-                                            <TrendingUp className="w-5 h-5 text-green-500 mt-1" />
-                                        </div>
-                                        <div className="bg-white dark:bg-secondary/50 rounded-xl p-4 shadow-sm">
-                                            <h4 className="text-sm text-gray-500 dark:text-gray-400">Last Session</h4>
-                                            <p className="text-2xl font-bold text-primary">
-                                                {stats.recentSessions[0]?.rate.toFixed(1)}%
-                                            </p>
-                                            <p className="text-sm text-gray-500 dark:text-gray-400">
-                                                {stats.recentSessions[0]?.presentCount}/{stats.recentSessions[0]?.totalCount} players
-                                            </p>
-                                        </div>
-                                    </div>
-
-                                    {/* Recent Sessions */}
-                                    <div className="bg-white dark:bg-secondary/50 rounded-xl p-4 shadow-sm">
-                                        <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
-                                            Last 5 Sessions
-                                        </h4>
-                                        <div className="space-y-3">
-                                            {stats.recentSessions.map((session) => (
-                                                <div key={session.sessionId} className="flex justify-between items-center">
-                                                    <span className="text-sm text-gray-600 dark:text-gray-400">
-                                                        {session.date.toLocaleDateString()}
-                                                    </span>
-                                                    <div className="text-right">
-                                                        <span className="font-medium text-primary">
-                                                            {session.rate.toFixed(1)}%
-                                                        </span>
-                                                        <span className="text-sm text-gray-500 dark:text-gray-400 ml-2">
-                                                            ({session.presentCount}/{session.totalCount})
-                                                        </span>
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-
-                                    {/* Individual Player Stats */}
-                                    <div className="bg-white dark:bg-secondary/50 rounded-xl p-4 shadow-sm">
-                                        <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
-                                            Player Attendance
-                                        </h4>
-                                        <div className="space-y-3">
-                                            {stats.playerStats
-                                                .sort((a, b) => b.attendanceRate - a.attendanceRate)
-                                                .map((player) => (
-                                                    <div key={player.id} className="flex justify-between items-center">
-                                                        <div>
-                                                            <span className="text-gray-800 dark:text-white">
-                                                                {player.name}
-                                                            </span>
-                                                            <span className="text-sm text-gray-500 dark:text-gray-400 ml-2">
-                                                                #{player.number}
-                                                            </span>
-                                                        </div>
-                                                        <div className="flex items-center space-x-2">
-                                                            <span className="font-medium text-primary">
-                                                                {player.attendanceRate.toFixed(1)}%
-                                                            </span>
-                                                            <TrendingUp className="w-4 h-4 text-green-500" />
-                                                        </div>
-                                                    </div>
-                                                ))}
-                                        </div>
-                                    </div>
-                                </div>
-                            );
-                        })()}
-                    </div>
                 </div>
             )}
 
