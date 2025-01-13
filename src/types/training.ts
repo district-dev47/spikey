@@ -3,9 +3,11 @@ export interface TrainingSession {
     date: Date;
     userId: string;
     teamId: string;
+    attendance?: TrainingAttendance[];
 }
 
 export interface TrainingAttendance {
     playerId: string;
     present: boolean;
+    updatedAt?: Date;
 } 

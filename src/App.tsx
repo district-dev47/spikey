@@ -7,6 +7,7 @@ import StatsPage from './components/StatsPage';
 import Login from './components/Login';
 import Training from './components/Training';
 import { Tab } from '@headlessui/react';
+import { collection, query, getDocs, orderBy, where } from 'firebase/firestore';
 
 interface Player {
   id: string;
@@ -116,6 +117,8 @@ function App() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const [trainingSessions, setTrainingSessions] = useState<any[]>([]);
+
   useEffect(() => {
     document.documentElement.classList.add('dark');
 
@@ -191,6 +194,64 @@ function App() {
 
     return () => unsubscribe();
   }, []);
+
+  useEffect(() => {
+    const fetchTrainingSessions = async () => {
+      if (!selectedTeam || !user) return;
+
+      try {
+        console.log('Fetching training sessions for team:', selectedTeam);
+        
+        const sessionsRef = collection(db, 'training-sessions');
+        const q = query(
+          sessionsRef,
+          where('teamId', '==', selectedTeam),
+          where('userId', '==', user.uid),
+          orderBy('date', 'desc')
+        );
+
+        const querySnapshot = await getDocs(q);
+        console.log('Found sessions:', querySnapshot.size);
+
+        const sessions = await Promise.all(
+          querySnapshot.docs.map(async (doc) => {
+            const sessionData = doc.data();
+            
+            // Get attendance subcollection
+            const attendanceRef = collection(doc.ref, 'attendance');
+            const attendanceSnapshot = await getDocs(attendanceRef);
+            
+            // Map attendance data and ensure proper structure
+            const attendance = attendanceSnapshot.docs.map(attendanceDoc => {
+              const data = attendanceDoc.data();
+              return {
+                id: attendanceDoc.id,
+                playerId: data.playerId,
+                present: data.present === true, // Ensure boolean
+                updatedAt: data.updatedAt
+              };
+            });
+
+            console.log(`Session ${doc.id} attendance:`, attendance);
+
+            return {
+              id: doc.id,
+              ...sessionData,
+              date: sessionData.date,
+              attendance: attendance // Use the properly structured attendance data
+            };
+          })
+        );
+
+        console.log('Final processed sessions:', sessions);
+        setTrainingSessions(sessions);
+      } catch (error) {
+        console.error('Error fetching training sessions:', error);
+      }
+    };
+
+    fetchTrainingSessions();
+  }, [selectedTeam, user]);
 
   const handleLogout = async () => {
     try {
@@ -825,6 +886,8 @@ function App() {
       onTeamSelect={setSelectedTeam}
       games={games}
       userId={user?.uid}
+      trainingSessions={trainingSessions}
+      darkMode={darkMode}
     />
   );
 
