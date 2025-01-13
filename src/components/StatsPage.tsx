@@ -12,7 +12,7 @@ import {
     Title,
     Tooltip,
     Legend
-} from 'chart.js';
+} from 'chart.js/auto';
 import { Timestamp } from 'firebase/firestore';
 
 // Register Chart.js components
