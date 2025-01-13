@@ -3,9 +3,10 @@ import { collection, addDoc, query, where, getDocs, updateDoc, doc, deleteDoc, o
 import { db } from '../firebase/firebase';
 import { TrainingSession, TrainingAttendance } from '../types/training';
 import { Player } from '../types/player';
-import { Plus, X, Check, ChevronDown, BarChart2, TrendingUp, TrendingDown } from 'lucide-react';
+import { Plus, X, Check, ChevronDown, BarChart2, TrendingUp, TrendingDown, Users } from 'lucide-react';
 import { Bar } from 'react-chartjs-2';
 import { chartOptions } from '../utils/chartConfig';
+import PlayerStats from './PlayerStats';
 
 interface TrainingProps {
     teamId: string;
@@ -44,6 +45,7 @@ const Training: React.FC<TrainingProps> = ({ teamId, userId, players, teams, onT
     const [isLoadingStats, setIsLoadingStats] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
     const [showStats, setShowStats] = useState(false);
+    const [showPlayerStats, setShowPlayerStats] = useState(false);
 
     // Add effect to fetch all training sessions when component mounts or teamId changes
     useEffect(() => {
@@ -416,7 +418,10 @@ const Training: React.FC<TrainingProps> = ({ teamId, userId, players, teams, onT
                     <div className="flex flex-col space-y-4">
                         <div className="flex justify-end space-x-2">
                             <button
-                                onClick={() => setShowStats(!showStats)}
+                                onClick={() => {
+                                    setShowStats(!showStats);
+                                    setShowPlayerStats(false);
+                                }}
                                 className={`flex items-center space-x-1 border px-3 py-1.5 rounded-lg transition-colors ${
                                     showStats 
                                         ? 'bg-primary text-white border-primary' 
@@ -424,7 +429,21 @@ const Training: React.FC<TrainingProps> = ({ teamId, userId, players, teams, onT
                                 }`}
                             >
                                 <BarChart2 className="w-4 h-4" />
-                                <span>Stats</span>
+                                <span>Team Stats</span>
+                            </button>
+                            <button
+                                onClick={() => {
+                                    setShowPlayerStats(!showPlayerStats);
+                                    setShowStats(false);
+                                }}
+                                className={`flex items-center space-x-1 border px-3 py-1.5 rounded-lg transition-colors ${
+                                    showPlayerStats 
+                                        ? 'bg-primary text-white border-primary' 
+                                        : 'border-primary text-primary hover:bg-primary/10'
+                                }`}
+                            >
+                                <Users className="w-4 h-4" />
+                                <span>Player Stats</span>
                             </button>
                             <button
                                 onClick={() => setShowNewSessionModal(true)}
@@ -514,6 +533,28 @@ const Training: React.FC<TrainingProps> = ({ teamId, userId, players, teams, onT
                                                 ))}
                                         </div>
                                     </div>
+                                </div>
+                            );
+                        })()}
+
+                        {/* Add the Player Stats section */}
+                        {teamId && showPlayerStats && (() => {
+                            const stats = calculateAttendanceStats();
+                            if (!stats) return null;
+
+                            return (
+                                <div className="space-y-4 mt-6">
+                                    {teamPlayers
+                                        .filter(hasPlayerId)
+                                        .map(player => (
+                                            <PlayerStats
+                                                key={player.id}
+                                                player={player}
+                                                sessions={trainingSessions}
+                                                attendanceMap={attendanceMap}
+                                                teamAverageRate={stats.teamRate}
+                                            />
+                                        ))}
                                 </div>
                             );
                         })()}
