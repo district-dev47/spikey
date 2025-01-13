@@ -2,28 +2,8 @@ import React, { useState, useMemo } from 'react';
 import { TrendingUp, TrendingDown } from 'lucide-react';
 import { Player } from '../types/player';
 import { TrainingSession } from '../types/training';
-import { chartOptions } from '../utils/chartConfig';
-import { Bar } from 'react-chartjs-2';
-import {
-    Chart as ChartJS,
-    CategoryScale,
-    LinearScale,
-    BarElement,
-    Title,
-    Tooltip,
-    Legend
-} from 'chart.js/auto';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { Timestamp } from 'firebase/firestore';
-
-// Register Chart.js components
-ChartJS.register(
-    CategoryScale,
-    LinearScale,
-    BarElement,
-    Title,
-    Tooltip,
-    Legend
-);
 
 // Helper function to convert Firestore Timestamp or Date to Date
 const toDate = (date: Date | Timestamp): Date => {
@@ -67,7 +47,7 @@ const StatsPage: React.FC<StatsPageProps> = ({
     games,
     userId,
     trainingSessions = [],
-    darkMode = true
+    darkMode = false,
 }) => {
     // Add loading and error states
     const [isLoading, setIsLoading] = useState(false);
@@ -89,86 +69,25 @@ const StatsPage: React.FC<StatsPageProps> = ({
         ? Math.round((teamWins / teamGames.length) * 100).toString()
         : '0';
 
-    // Calculate attendance statistics
-    const attendanceStats = useMemo(() => {
-        setError(null);
-        if (!selectedTeam) return null;
+    const attendanceData = useMemo(() => {
+        if (!trainingSessions || trainingSessions.length === 0) return [];
         
-        try {
-            if (!trainingSessions || trainingSessions.length === 0) {
-                console.log('No training sessions available:', { 
-                    selectedTeam, 
-                    trainingSessions 
-                });
-                setError("No training sessions found for this team");
-                return null;
-            }
-
-            const teamPlayers = players[selectedTeam] || [];
-            if (!teamPlayers.length) {
-                setError("No players found in team");
-                return null;
-            }
-
-            // Get recent sessions (last 5)
-            const recentSessions = trainingSessions
-                .sort((a, b) => {
-                    const dateA = toDate(a.date);
-                    const dateB = toDate(b.date);
-                    return dateB.getTime() - dateA.getTime();
-                })
-                .slice(0, 5)
-                .map(session => {
-                    const presentCount = (session.attendance || [])
-                        .filter(record => record.present === true).length;
-                    
-                    return {
-                        date: session.date,
-                        presentCount,
-                        totalCount: teamPlayers.length,
-                        rate: (presentCount / teamPlayers.length) * 100,
-                        sessionId: session.id || ''
-                    };
-                });
-
-            // Calculate overall team attendance rate
-            let totalAttendance = 0;
-            trainingSessions.forEach(session => {
-                const presentCount = (session.attendance || [])
-                    .filter(record => record.present === true).length;
-                const sessionRate = presentCount / teamPlayers.length;
-                totalAttendance += sessionRate;
-            });
-
-            const teamAttendanceRate = (totalAttendance / trainingSessions.length) * 100;
-
-            // Calculate individual player attendance rates
-            const playerStats = teamPlayers.map(player => {
-                const playerAttendance = trainingSessions.reduce((acc, session) => {
-                    const record = session.attendance?.find(r => r.playerId === player.id);
-                    return record?.present === true ? acc + 1 : acc;
-                }, 0);
+        return trainingSessions
+            .filter(session => session.teamId === selectedTeam)
+            .map(session => {
+                const totalPlayers = session.attendance ? Object.keys(session.attendance).length : 0;
+                const presentPlayers = session.attendance 
+                    ? Object.values(session.attendance).filter(a => a.present).length 
+                    : 0;
+                const attendanceRate = totalPlayers > 0 ? (presentPlayers / totalPlayers) * 100 : 0;
                 
                 return {
-                    ...player,
-                    attendanceRate: (playerAttendance / trainingSessions.length) * 100,
-                    trend: 'up'
+                    date: toDate(session.date).toLocaleDateString(),
+                    attendanceRate: Math.round(attendanceRate)
                 };
-            });
-
-            return {
-                teamRate: teamAttendanceRate,
-                recentSessions,
-                playerStats,
-                trend: 'up'
-            };
-
-        } catch (err) {
-            console.error('Error calculating attendance stats:', err);
-            setError(err instanceof Error ? err.message : "Error calculating attendance statistics");
-            return null;
-        }
-    }, [selectedTeam, trainingSessions, players]);
+            })
+            .slice(-5); // Get last 5 sessions
+    }, [trainingSessions, selectedTeam]);
 
     // Add loading state for initial render
     if (isLoading) {
@@ -178,60 +97,6 @@ const StatsPage: React.FC<StatsPageProps> = ({
             </div>
         );
     }
-
-    // Add this inside the StatsPage component, after the attendanceStats calculation
-    const attendanceChartData = useMemo(() => {
-        if (!attendanceStats) return null;
-
-        return {
-            labels: attendanceStats.recentSessions.map(session => 
-                toDate(session.date).toLocaleDateString()
-            ).reverse(),
-            datasets: [
-                {
-                    label: 'Attendance Rate (%)',
-                    data: attendanceStats.recentSessions.map(session => session.rate).reverse(),
-                    backgroundColor: 'rgba(99, 102, 241, 0.5)',
-                    borderColor: 'rgb(99, 102, 241)',
-                    borderWidth: 1,
-                },
-            ],
-        };
-    }, [attendanceStats]);
-
-    const chartOptions = {
-        responsive: true,
-        plugins: {
-            legend: {
-                display: false,
-            },
-            title: {
-                display: true,
-                text: 'Recent Attendance Trend',
-                color: darkMode ? 'white' : 'rgb(17, 24, 39)',
-            },
-        },
-        scales: {
-            y: {
-                beginAtZero: true,
-                max: 100,
-                ticks: {
-                    color: darkMode ? 'rgb(156, 163, 175)' : 'rgb(55, 65, 81)',
-                },
-                grid: {
-                    color: darkMode ? 'rgba(75, 85, 99, 0.3)' : 'rgba(209, 213, 219, 0.5)',
-                },
-            },
-            x: {
-                ticks: {
-                    color: darkMode ? 'rgb(156, 163, 175)' : 'rgb(55, 65, 81)',
-                },
-                grid: {
-                    display: false,
-                },
-            },
-        },
-    };
 
     return (
         <div className="p-4">
@@ -302,103 +167,25 @@ const StatsPage: React.FC<StatsPageProps> = ({
                 </div>
             )}
 
-            {/* Team Statistics */}
-            {selectedTeam && attendanceStats && (
-                <>
-                    {/* Attendance Statistics */}
-                    <div className="mt-6">
-                        <h3 className="text-lg font-semibold dark:text-white mb-4">Attendance Statistics</h3>
-                        
-                        {/* Team Attendance Overview */}
-                        <div className="grid grid-cols-2 gap-4 mb-6">
-                            <div className="bg-white dark:bg-secondary/50 rounded-xl p-4 shadow-sm">
-                                <h4 className="text-sm text-gray-500 dark:text-gray-400">Team Attendance Rate</h4>
-                                <p className="text-2xl font-bold text-primary">
-                                    {attendanceStats.teamRate.toFixed(1)}%
-                                </p>
-                                {attendanceStats.trend === 'up' ? (
-                                    <TrendingUp className="w-5 h-5 text-green-500 mt-1" />
-                                ) : (
-                                    <TrendingDown className="w-5 h-5 text-red-500 mt-1" />
-                                )}
-                            </div>
-                            <div className="bg-white dark:bg-secondary/50 rounded-xl p-4 shadow-sm">
-                                <h4 className="text-sm text-gray-500 dark:text-gray-400">Last Session</h4>
-                                <p className="text-2xl font-bold text-primary">
-                                    {attendanceStats.recentSessions[0]?.rate.toFixed(1)}%
-                                </p>
-                                <p className="text-sm text-gray-500 dark:text-gray-400">
-                                    {attendanceStats.recentSessions[0]?.presentCount}/{attendanceStats.recentSessions[0]?.totalCount} players
-                                </p>
-                            </div>
-                        </div>
-
-                        {/* Recent Sessions */}
-                        <div className="bg-white dark:bg-secondary/50 rounded-xl p-4 shadow-sm mb-6">
-                            <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
-                                Last 5 Sessions
-                            </h4>
-                            <div className="space-y-3">
-                                {attendanceStats?.recentSessions.map((session) => (
-                                    <div key={session.sessionId} className="flex justify-between items-center">
-                                        <span className="text-sm text-gray-600 dark:text-gray-400">
-                                            {toDate(session.date).toLocaleDateString()}
-                                        </span>
-                                        <div className="text-right">
-                                            <span className="font-medium text-primary">
-                                                {session.rate.toFixed(1)}%
-                                            </span>
-                                            <span className="text-sm text-gray-500 dark:text-gray-400 ml-2">
-                                                ({session.presentCount}/{session.totalCount})
-                                            </span>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-
-                        {/* Individual Player Stats */}
-                        <div className="bg-white dark:bg-secondary/50 rounded-xl p-4 shadow-sm">
-                            <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
-                                Player Attendance
-                            </h4>
-                            <div className="space-y-3">
-                                {attendanceStats.playerStats
-                                    .sort((a, b) => b.attendanceRate - a.attendanceRate)
-                                    .map((player) => (
-                                        <div key={`player-${player.id || player.number}`} className="flex justify-between items-center">
-                                            <div>
-                                                <span className="text-gray-800 dark:text-white">
-                                                    {player.name}
-                                                </span>
-                                                <span className="text-sm text-gray-500 dark:text-gray-400 ml-2">
-                                                    #{player.number}
-                                                </span>
-                                            </div>
-                                            <div className="flex items-center space-x-2">
-                                                <span className="font-medium text-primary">
-                                                    {player.attendanceRate.toFixed(1)}%
-                                                </span>
-                                                {player.trend === 'up' ? (
-                                                    <TrendingUp className="w-4 h-4 text-green-500" />
-                                                ) : (
-                                                    <TrendingDown className="w-4 h-4 text-red-500" />
-                                                )}
-                                            </div>
-                                        </div>
-                                    ))}
-                            </div>
-                        </div>
-                    </div>
-                </>
-            )}
-
-            {/* Attendance Chart */}
-            {attendanceChartData && (
-                <div className="bg-white dark:bg-secondary/50 rounded-xl p-4 shadow-sm mb-6">
-                    <Bar data={attendanceChartData} options={chartOptions} />
+            <div className="mt-8 bg-white dark:bg-gray-800 rounded-lg p-4 shadow-md">
+                <h3 className="text-lg font-semibold mb-4">Training Attendance (Last 5 Sessions)</h3>
+                <div className="h-64 w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={attendanceData}>
+                            <CartesianGrid strokeDasharray="3 3" />
+                            <XAxis dataKey="date" />
+                            <YAxis domain={[0, 100]} />
+                            <Tooltip />
+                            <Legend />
+                            <Bar 
+                                dataKey="attendanceRate" 
+                                name="Attendance Rate (%)" 
+                                fill="#4F46E5"
+                            />
+                        </BarChart>
+                    </ResponsiveContainer>
                 </div>
-            )}
+            </div>
         </div>
     );
 };
