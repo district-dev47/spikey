@@ -1,17 +1,8 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import { TrendingUp, TrendingDown } from 'lucide-react';
 import { Player } from '../types/player';
 import { TrainingSession } from '../types/training';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { Timestamp } from 'firebase/firestore';
-
-// Helper function to convert Firestore Timestamp or Date to Date
-const toDate = (date: Date | Timestamp): Date => {
-    if (date instanceof Timestamp) {
-        return date.toDate();
-    }
-    return date;
-};
 
 interface StatsPageProps {
     selectedTeam: string;
@@ -24,7 +15,6 @@ interface StatsPageProps {
         status: 'win' | 'loss';
     }>;
     userId: string;
-    trainingSessions?: TrainingSession[];
     darkMode?: boolean;
 }
 
@@ -46,7 +36,6 @@ const StatsPage: React.FC<StatsPageProps> = ({
     onTeamSelect,
     games,
     userId,
-    trainingSessions = [],
     darkMode = false,
 }) => {
     // Add loading and error states
@@ -68,26 +57,6 @@ const StatsPage: React.FC<StatsPageProps> = ({
     const teamWinPercentage = teamGames.length > 0
         ? Math.round((teamWins / teamGames.length) * 100).toString()
         : '0';
-
-    const attendanceData = useMemo(() => {
-        if (!trainingSessions || trainingSessions.length === 0) return [];
-        
-        return trainingSessions
-            .filter(session => session.teamId === selectedTeam)
-            .map(session => {
-                const totalPlayers = session.attendance ? Object.keys(session.attendance).length : 0;
-                const presentPlayers = session.attendance 
-                    ? Object.values(session.attendance).filter(a => a.present).length 
-                    : 0;
-                const attendanceRate = totalPlayers > 0 ? (presentPlayers / totalPlayers) * 100 : 0;
-                
-                return {
-                    date: toDate(session.date).toLocaleDateString(),
-                    attendanceRate: Math.round(attendanceRate)
-                };
-            })
-            .slice(-5); // Get last 5 sessions
-    }, [trainingSessions, selectedTeam]);
 
     // Add loading state for initial render
     if (isLoading) {
@@ -166,26 +135,6 @@ const StatsPage: React.FC<StatsPageProps> = ({
                     </div>
                 </div>
             )}
-
-            <div className="mt-8 bg-white dark:bg-gray-800 rounded-lg p-4 shadow-md">
-                <h3 className="text-lg font-semibold mb-4">Training Attendance (Last 5 Sessions)</h3>
-                <div className="h-64 w-full">
-                    <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={attendanceData}>
-                            <CartesianGrid strokeDasharray="3 3" />
-                            <XAxis dataKey="date" />
-                            <YAxis domain={[0, 100]} />
-                            <Tooltip />
-                            <Legend />
-                            <Bar 
-                                dataKey="attendanceRate" 
-                                name="Attendance Rate (%)" 
-                                fill="#4F46E5"
-                            />
-                        </BarChart>
-                    </ResponsiveContainer>
-                </div>
-            </div>
         </div>
     );
 };
