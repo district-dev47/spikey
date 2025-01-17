@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { collection, addDoc, query, where, getDocs, updateDoc, doc, deleteDoc, orderBy } from 'firebase/firestore';
 import { db } from '../firebase/firebase';
-import { TrainingSession, TrainingAttendance } from '../types/training';
+import { TrainingSession, TrainingAttendance, AbsenceReason } from '../types/training';
 import { Player } from '../types/player';
-import { Plus, X, Check, ChevronDown, BarChart2, TrendingUp, TrendingDown, Users } from 'lucide-react';
+import { Plus, X, Check, ChevronDown, BarChart2, TrendingUp, TrendingDown, Users, MoreHorizontal, Stethoscope, School, Music, Briefcase, Users2, HelpCircle } from 'lucide-react';
 import { Bar } from 'react-chartjs-2';
 import { chartOptions } from '../utils/chartConfig';
 import PlayerStats from './PlayerStats';
@@ -26,6 +26,26 @@ const hasPlayerId = (player: Player): player is Player & { id: string } => {
     return typeof player.id === 'string';
 };
 
+// Add a helper function to get the reason icon
+const getReasonIcon = (reason?: AbsenceReason) => {
+    switch (reason) {
+        case 'Sick/Injured':
+            return <Stethoscope className="w-4 h-4 text-red-500" />;
+        case 'School':
+            return <School className="w-4 h-4 text-blue-500" />;
+        case 'Party/Holiday':
+            return <Music className="w-4 h-4 text-purple-500" />;
+        case 'Work':
+            return <Briefcase className="w-4 h-4 text-orange-500" />;
+        case 'Family':
+            return <Users2 className="w-4 h-4 text-green-500" />;
+        case 'Unknown':
+            return <HelpCircle className="w-4 h-4 text-gray-500" />;
+        default:
+            return null;
+    }
+};
+
 const Training: React.FC<TrainingProps> = ({ teamId, userId, players, teams, onTeamSelect }) => {
     console.log('Training component mounted/updated:', { teamId, userId, players, teams });
 
@@ -46,6 +66,12 @@ const Training: React.FC<TrainingProps> = ({ teamId, userId, players, teams, onT
     const [isLoading, setIsLoading] = useState(true);
     const [showStats, setShowStats] = useState(false);
     const [showPlayerStats, setShowPlayerStats] = useState(false);
+    const [showAbsenceReasonModal, setShowAbsenceReasonModal] = useState(false);
+    const [selectedPlayerForReason, setSelectedPlayerForReason] = useState<{
+        sessionId: string;
+        playerId: string;
+        playerName: string;
+    } | null>(null);
 
     // Add effect to fetch all training sessions when component mounts or teamId changes
     useEffect(() => {
@@ -223,7 +249,12 @@ const Training: React.FC<TrainingProps> = ({ teamId, userId, players, teams, onT
         }
     };
 
-    const updateAttendance = async (sessionId: string, playerId: string, present: boolean) => {
+    const updateAttendance = async (
+        sessionId: string, 
+        playerId: string, 
+        present: boolean,
+        absenceReason?: AbsenceReason
+    ) => {
         if (!sessionId || !playerId) {
             console.error('Missing sessionId or playerId');
             return;
@@ -236,19 +267,25 @@ const Training: React.FC<TrainingProps> = ({ teamId, userId, players, teams, onT
             const currentAttendance = session.attendance || [];
             const updatedAttendance = currentAttendance.filter(a => a.playerId !== playerId);
             
-            // Always add an attendance record with explicit present/absent state
-            updatedAttendance.push({
+            // Create new attendance record
+            const newAttendanceRecord: TrainingAttendance = {
                 playerId,
                 present,
                 updatedAt: new Date()
-            });
+            };
+
+            // Only add absenceReason if the player is absent
+            if (!present && absenceReason) {
+                newAttendanceRecord.absenceReason = absenceReason;
+            }
+
+            updatedAttendance.push(newAttendanceRecord);
 
             const sessionRef = doc(db, 'training-sessions', sessionId);
             await updateDoc(sessionRef, {
                 attendance: updatedAttendance
             });
             
-            // Update local state with explicit state
             setAttendanceMap(prev => ({
                 ...prev,
                 [sessionId]: {
@@ -393,6 +430,62 @@ const Training: React.FC<TrainingProps> = ({ teamId, userId, players, teams, onT
             recentSessions,
             playerStats
         };
+    };
+
+    // Add the absence reason modal component
+    const AbsenceReasonModal = () => {
+        const reasons: { value: AbsenceReason; icon: JSX.Element }[] = [
+            { value: 'Sick/Injured', icon: <Stethoscope className="w-5 h-5" /> },
+            { value: 'School', icon: <School className="w-5 h-5" /> },
+            { value: 'Party/Holiday', icon: <Music className="w-5 h-5" /> },
+            { value: 'Work', icon: <Briefcase className="w-5 h-5" /> },
+            { value: 'Family', icon: <Users2 className="w-5 h-5" /> },
+            { value: 'Unknown', icon: <HelpCircle className="w-5 h-5" /> }
+        ];
+        
+        if (!selectedPlayerForReason) return null;
+
+        return (
+            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+                <div className="bg-white dark:bg-secondary rounded-xl p-6 w-[90%] max-w-md shadow-xl">
+                    <h3 className="text-lg font-semibold dark:text-white mb-2">
+                        Absence Reason for {selectedPlayerForReason.playerName}
+                    </h3>
+                    <div className="grid grid-cols-2 gap-3 mt-4">
+                        {reasons.map(({ value, icon }) => (
+                            <button
+                                key={value}
+                                onClick={() => {
+                                    updateAttendance(
+                                        selectedPlayerForReason.sessionId,
+                                        selectedPlayerForReason.playerId,
+                                        false,
+                                        value
+                                    );
+                                    setShowAbsenceReasonModal(false);
+                                    setSelectedPlayerForReason(null);
+                                }}
+                                className="px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors flex items-center space-x-2 text-gray-800 dark:text-gray-200"
+                            >
+                                {icon}
+                                <span>{value}</span>
+                            </button>
+                        ))}
+                    </div>
+                    <div className="flex justify-end mt-6">
+                        <button
+                            onClick={() => {
+                                setShowAbsenceReasonModal(false);
+                                setSelectedPlayerForReason(null);
+                            }}
+                            className="px-4 py-2 text-gray-500 dark:text-gray-400"
+                        >
+                            Cancel
+                        </button>
+                    </div>
+                </div>
+            </div>
+        );
     };
 
     return (
@@ -666,7 +759,12 @@ const Training: React.FC<TrainingProps> = ({ teamId, userId, players, teams, onT
                                                     <button
                                                         onClick={(e) => {
                                                             e.stopPropagation();
-                                                            updateAttendance(session.id!, player.id, false);
+                                                            setSelectedPlayerForReason({
+                                                                sessionId: session.id!,
+                                                                playerId: player.id,
+                                                                playerName: player.name
+                                                            });
+                                                            setShowAbsenceReasonModal(true);
                                                         }}
                                                         className={`p-2 rounded-full ${
                                                             attendanceMap[session.id]?.[player.id] === false
@@ -676,6 +774,29 @@ const Training: React.FC<TrainingProps> = ({ teamId, userId, players, teams, onT
                                                     >
                                                         <X className="w-5 h-5" />
                                                     </button>
+                                                    {attendanceMap[session.id]?.[player.id] === false && (
+                                                        <>
+                                                            {session.attendance?.find(a => a.playerId === player.id)?.absenceReason && (
+                                                                <div className="p-2">
+                                                                    {getReasonIcon(session.attendance?.find(a => a.playerId === player.id)?.absenceReason)}
+                                                                </div>
+                                                            )}
+                                                            <button
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    setSelectedPlayerForReason({
+                                                                        sessionId: session.id!,
+                                                                        playerId: player.id,
+                                                                        playerName: player.name
+                                                                    });
+                                                                    setShowAbsenceReasonModal(true);
+                                                                }}
+                                                                className="p-2 rounded-full hover:bg-gray-100 text-gray-400 dark:hover:bg-gray-700"
+                                                            >
+                                                                <MoreHorizontal className="w-5 h-5" />
+                                                            </button>
+                                                        </>
+                                                    )}
                                                 </div>
                                             </div>
                                         ))}
@@ -773,6 +894,9 @@ const Training: React.FC<TrainingProps> = ({ teamId, userId, players, teams, onT
                     </div>
                 </div>
             )}
+
+            {/* Add the modal to the main render */}
+            {showAbsenceReasonModal && <AbsenceReasonModal />}
         </div>
     );
 };

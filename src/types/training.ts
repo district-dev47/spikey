@@ -1,13 +1,16 @@
-export interface TrainingSession {
-    id?: string;
-    date: Date;
-    userId: string;
-    teamId: string;
-    attendance?: TrainingAttendance[];
-}
+export type AbsenceReason = 'Sick/Injured' | 'School' | 'Party/Holiday' | 'Work' | 'Family' | 'Unknown';
 
 export interface TrainingAttendance {
     playerId: string;
     present: boolean;
-    updatedAt?: Date;
+    absenceReason?: AbsenceReason;
+    updatedAt: Date;
+}
+
+export interface TrainingSession {
+    id?: string;
+    teamId: string;
+    userId: string;
+    date: Date;
+    attendance?: TrainingAttendance[];
 } 
