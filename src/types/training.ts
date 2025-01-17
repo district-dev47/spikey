@@ -1,4 +1,4 @@
-export type AbsenceReason = 'Sick/Injured' | 'School' | 'Party/Holiday' | 'Work' | 'Family' | 'Unknown';
+export type AbsenceReason = 'Sick' | 'Injured' | 'School' | 'Party' | 'Holiday' | 'Work' | 'Family' | 'Unknown';
 
 export interface TrainingAttendance {
     playerId: string;

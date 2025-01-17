@@ -3,7 +3,7 @@ import { collection, addDoc, query, where, getDocs, updateDoc, doc, deleteDoc, o
 import { db } from '../firebase/firebase';
 import { TrainingSession, TrainingAttendance, AbsenceReason } from '../types/training';
 import { Player } from '../types/player';
-import { Plus, X, Check, ChevronDown, BarChart2, TrendingUp, TrendingDown, Users, MoreHorizontal, Stethoscope, School, Music, Briefcase, Users2, HelpCircle } from 'lucide-react';
+import { Plus, X, Check, ChevronDown, BarChart2, TrendingUp, TrendingDown, Users, MoreHorizontal, Stethoscope, School, Music, Briefcase, Users2, HelpCircle, Activity, Palmtree } from 'lucide-react';
 import { Bar } from 'react-chartjs-2';
 import { chartOptions } from '../utils/chartConfig';
 import PlayerStats from './PlayerStats';
@@ -29,12 +29,16 @@ const hasPlayerId = (player: Player): player is Player & { id: string } => {
 // Add a helper function to get the reason icon
 const getReasonIcon = (reason?: AbsenceReason) => {
     switch (reason) {
-        case 'Sick/Injured':
+        case 'Sick':
             return <Stethoscope className="w-4 h-4 text-red-500" />;
+        case 'Injured':
+            return <Activity className="w-4 h-4 text-orange-500" />;
         case 'School':
             return <School className="w-4 h-4 text-blue-500" />;
-        case 'Party/Holiday':
+        case 'Party':
             return <Music className="w-4 h-4 text-purple-500" />;
+        case 'Holiday':
+            return <Palmtree className="w-4 h-4 text-green-500" />;
         case 'Work':
             return <Briefcase className="w-4 h-4 text-orange-500" />;
         case 'Family':
@@ -452,9 +456,11 @@ const Training: React.FC<TrainingProps> = ({ teamId, userId, players, teams, onT
     // Add the absence reason modal component
     const AbsenceReasonModal = () => {
         const reasons: { value: AbsenceReason; icon: JSX.Element }[] = [
-            { value: 'Sick/Injured', icon: <Stethoscope className="w-5 h-5" /> },
+            { value: 'Sick', icon: <Stethoscope className="w-5 h-5" /> },
+            { value: 'Injured', icon: <Activity className="w-5 h-5" /> },
             { value: 'School', icon: <School className="w-5 h-5" /> },
-            { value: 'Party/Holiday', icon: <Music className="w-5 h-5" /> },
+            { value: 'Party', icon: <Music className="w-5 h-5" /> },
+            { value: 'Holiday', icon: <Palmtree className="w-5 h-5" /> },
             { value: 'Work', icon: <Briefcase className="w-5 h-5" /> },
             { value: 'Family', icon: <Users2 className="w-5 h-5" /> },
             { value: 'Unknown', icon: <HelpCircle className="w-5 h-5" /> }
@@ -507,11 +513,13 @@ const Training: React.FC<TrainingProps> = ({ teamId, userId, players, teams, onT
 
     // Add this component for the absence stats section
     const AbsenceStatsByReason = ({ stats }: { stats: ReturnType<typeof calculateAttendanceStats> }) => {
-        const [selectedReason, setSelectedReason] = useState<AbsenceReason>('Sick/Injured');
+        const [selectedReason, setSelectedReason] = useState<AbsenceReason>('Sick');
         const reasons: { value: AbsenceReason; icon: JSX.Element }[] = [
-            { value: 'Sick/Injured', icon: <Stethoscope className="w-5 h-5" /> },
+            { value: 'Sick', icon: <Stethoscope className="w-5 h-5" /> },
+            { value: 'Injured', icon: <Activity className="w-5 h-5" /> },
             { value: 'School', icon: <School className="w-5 h-5" /> },
-            { value: 'Party/Holiday', icon: <Music className="w-5 h-5" /> },
+            { value: 'Party', icon: <Music className="w-5 h-5" /> },
+            { value: 'Holiday', icon: <Palmtree className="w-5 h-5" /> },
             { value: 'Work', icon: <Briefcase className="w-5 h-5" /> },
             { value: 'Family', icon: <Users2 className="w-5 h-5" /> },
             { value: 'Unknown', icon: <HelpCircle className="w-5 h-5" /> }
@@ -579,301 +587,279 @@ const Training: React.FC<TrainingProps> = ({ teamId, userId, players, teams, onT
     };
 
     return (
-        <div className="p-4">
-            <div className="flex flex-col space-y-4 mb-6">
-                {/* Team Selector */}
-                <div className="flex items-center justify-between">
-                    <h2 className="text-lg font-semibold dark:text-white">Training Sessions</h2>
-                    <select
-                        value={teamId}
-                        onChange={(e) => onTeamSelect(e.target.value)}
-                        className="px-4 py-2 rounded-lg border dark:border-gray-600 dark:bg-secondary-dark dark:text-white"
-                    >
-                        <option value="">Select Team</option>
-                        {teams.map((team) => (
-                            <option key={team.id} value={team.id}>
-                                {team.name}
-                            </option>
-                        ))}
-                    </select>
+        <div className="p-4 min-h-screen bg-gray-50 dark:bg-secondary-dark">
+            {isLoading ? (
+                <div className="flex flex-col items-center justify-center h-[calc(100vh-8rem)] space-y-4">
+                    <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
+                    <p className="text-gray-500 dark:text-gray-400">Loading training sessions...</p>
                 </div>
-
-                {/* Action Buttons - only show when a team is selected */}
-                {teamId && (
-                    <div className="flex flex-col space-y-4">
-                        <div className="flex justify-end space-x-2">
-                            <button
-                                onClick={() => {
-                                    setShowStats(!showStats);
-                                    setShowPlayerStats(false);
-                                }}
-                                className={`flex items-center space-x-1 border px-3 py-1.5 rounded-lg transition-colors ${
-                                    showStats 
-                                        ? 'bg-primary text-white border-primary' 
-                                        : 'border-primary text-primary hover:bg-primary/10'
-                                }`}
+            ) : (
+                <>
+                    <div className="flex flex-col space-y-4 mb-6">
+                        {/* Team Selector */}
+                        <div className="flex items-center justify-between">
+                            <h2 className="text-lg font-semibold dark:text-white">Training Sessions</h2>
+                            <select
+                                value={teamId}
+                                onChange={(e) => onTeamSelect(e.target.value)}
+                                className="px-4 py-2 rounded-lg border dark:border-gray-600 dark:bg-secondary-dark dark:text-white"
                             >
-                                <BarChart2 className="w-4 h-4" />
-                                <span>Team Stats</span>
-                            </button>
-                            <button
-                                onClick={() => {
-                                    setShowPlayerStats(!showPlayerStats);
-                                    setShowStats(false);
-                                }}
-                                className={`flex items-center space-x-1 border px-3 py-1.5 rounded-lg transition-colors ${
-                                    showPlayerStats 
-                                        ? 'bg-primary text-white border-primary' 
-                                        : 'border-primary text-primary hover:bg-primary/10'
-                                }`}
-                            >
-                                <Users className="w-4 h-4" />
-                                <span>Player Stats</span>
-                            </button>
-                            <button
-                                onClick={() => {
-                                    setSelectedTeamForNewSession(teamId);
-                                    setShowNewSessionModal(true);
-                                }}
-                                className="flex items-center space-x-1 border border-primary text-primary px-3 py-1.5 rounded-lg hover:bg-primary/10 transition-colors"
-                            >
-                                <Plus className="w-4 h-4" />
-                                <span>New Session</span>
-                            </button>
+                                <option value="">Select Team</option>
+                                {teams.map((team) => (
+                                    <option key={team.id} value={team.id}>
+                                        {team.name}
+                                    </option>
+                                ))}
+                            </select>
                         </div>
 
-                        {/* Stats Section - Now conditionally rendered based on showStats */}
-                        {teamId && showStats && (() => {
-                            const stats = calculateAttendanceStats();
-                            if (!stats) return null;
+                        {/* Action Buttons - only show when a team is selected */}
+                        {teamId && (
+                            <div className="flex flex-col space-y-4">
+                                <div className="flex justify-end space-x-2">
+                                    <button
+                                        onClick={() => {
+                                            setShowStats(!showStats);
+                                            setShowPlayerStats(false);
+                                        }}
+                                        className={`flex items-center space-x-1 border px-3 py-1.5 rounded-lg transition-colors ${
+                                            showStats 
+                                                ? 'bg-primary text-white border-primary' 
+                                                : 'border-primary text-primary hover:bg-primary/10'
+                                        }`}
+                                    >
+                                        <BarChart2 className="w-4 h-4" />
+                                        <span>Team Stats</span>
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            setShowPlayerStats(!showPlayerStats);
+                                            setShowStats(false);
+                                        }}
+                                        className={`flex items-center space-x-1 border px-3 py-1.5 rounded-lg transition-colors ${
+                                            showPlayerStats 
+                                                ? 'bg-primary text-white border-primary' 
+                                                : 'border-primary text-primary hover:bg-primary/10'
+                                        }`}
+                                    >
+                                        <Users className="w-4 h-4" />
+                                        <span>Player Stats</span>
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            setSelectedTeamForNewSession(teamId);
+                                            setShowNewSessionModal(true);
+                                        }}
+                                        className="flex items-center space-x-1 border border-primary text-primary px-3 py-1.5 rounded-lg hover:bg-primary/10 transition-colors"
+                                    >
+                                        <Plus className="w-4 h-4" />
+                                        <span>New Session</span>
+                                    </button>
+                                </div>
 
-                            return (
-                                <div className="space-y-6 mt-6">
-                                    {/* Team Attendance Overview */}
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div className="bg-white dark:bg-secondary/50 rounded-xl p-4 shadow-sm">
-                                            <h4 className="text-sm text-gray-500 dark:text-gray-400">Team Attendance Rate</h4>
-                                            <p className="text-2xl font-bold text-primary">
-                                                {stats.teamRate.toFixed(1)}%
-                                            </p>
-                                            <TrendingUp className="w-5 h-5 text-green-500 mt-1" />
-                                        </div>
-                                        <div className="bg-white dark:bg-secondary/50 rounded-xl p-4 shadow-sm">
-                                            <h4 className="text-sm text-gray-500 dark:text-gray-400">Last Session</h4>
-                                            <p className="text-2xl font-bold text-primary">
-                                                {stats.recentSessions[0]?.rate.toFixed(1)}%
-                                            </p>
-                                            <p className="text-sm text-gray-500 dark:text-gray-400">
-                                                {stats.recentSessions[0]?.presentCount}/{stats.recentSessions[0]?.totalCount} players
-                                            </p>
-                                        </div>
-                                    </div>
+                                {/* Stats Section - Now conditionally rendered based on showStats */}
+                                {teamId && showStats && (() => {
+                                    const stats = calculateAttendanceStats();
+                                    if (!stats) return null;
 
-                                    {/* Recent Sessions */}
-                                    <div className="bg-white dark:bg-secondary/50 rounded-xl p-4 shadow-sm">
-                                        <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
-                                            Last 5 Sessions
-                                        </h4>
-                                        <div className="space-y-3">
-                                            {stats.recentSessions.map((session) => (
-                                                <div key={session.sessionId} className="flex justify-between items-center">
-                                                    <span className="text-sm text-gray-600 dark:text-gray-400">
-                                                        {session.date.toLocaleDateString()}
-                                                    </span>
-                                                    <div className="text-right">
-                                                        <span className="font-medium text-primary">
-                                                            {session.rate.toFixed(1)}%
-                                                        </span>
-                                                        <span className="text-sm text-gray-500 dark:text-gray-400 ml-2">
-                                                            ({session.presentCount}/{session.totalCount})
-                                                        </span>
-                                                    </div>
+                                    return (
+                                        <div className="space-y-6 mt-6">
+                                            {/* Team Attendance Overview */}
+                                            <div className="grid grid-cols-2 gap-4">
+                                                <div className="bg-white dark:bg-secondary/50 rounded-xl p-4 shadow-sm">
+                                                    <h4 className="text-sm text-gray-500 dark:text-gray-400">Team Attendance Rate</h4>
+                                                    <p className="text-2xl font-bold text-primary">
+                                                        {stats.teamRate.toFixed(1)}%
+                                                    </p>
+                                                    <TrendingUp className="w-5 h-5 text-green-500 mt-1" />
                                                 </div>
-                                            ))}
-                                        </div>
-                                    </div>
+                                                <div className="bg-white dark:bg-secondary/50 rounded-xl p-4 shadow-sm">
+                                                    <h4 className="text-sm text-gray-500 dark:text-gray-400">Last Session</h4>
+                                                    <p className="text-2xl font-bold text-primary">
+                                                        {stats.recentSessions[0]?.rate.toFixed(1)}%
+                                                    </p>
+                                                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                                                        {stats.recentSessions[0]?.presentCount}/{stats.recentSessions[0]?.totalCount} players
+                                                    </p>
+                                                </div>
+                                            </div>
 
-                                    {/* Individual Player Stats */}
-                                    <div className="bg-white dark:bg-secondary/50 rounded-xl p-4 shadow-sm">
-                                        <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
-                                            Player Attendance
-                                        </h4>
-                                        <div className="space-y-3">
-                                            {stats.playerStats
-                                                .sort((a, b) => b.attendanceRate - a.attendanceRate)
-                                                .map((player) => (
-                                                    <div key={player.id} className="flex justify-between items-center">
-                                                        <div>
-                                                            <span className="text-gray-800 dark:text-white">
-                                                                {player.name}
+                                            {/* Recent Sessions */}
+                                            <div className="bg-white dark:bg-secondary/50 rounded-xl p-4 shadow-sm">
+                                                <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+                                                    Last 5 Sessions
+                                                </h4>
+                                                <div className="space-y-3">
+                                                    {stats.recentSessions.map((session) => (
+                                                        <div key={session.sessionId} className="flex justify-between items-center">
+                                                            <span className="text-sm text-gray-600 dark:text-gray-400">
+                                                                {session.date.toLocaleDateString()}
                                                             </span>
-                                                            <span className="text-sm text-gray-500 dark:text-gray-400 ml-2">
-                                                                #{player.number}
-                                                            </span>
+                                                            <div className="text-right">
+                                                                <span className="font-medium text-primary">
+                                                                    {session.rate.toFixed(1)}%
+                                                                </span>
+                                                                <span className="text-sm text-gray-500 dark:text-gray-400 ml-2">
+                                                                    ({session.presentCount}/{session.totalCount})
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+
+                                            {/* Individual Player Stats */}
+                                            <div className="bg-white dark:bg-secondary/50 rounded-xl p-4 shadow-sm">
+                                                <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+                                                    Player Attendance
+                                                </h4>
+                                                <div className="space-y-3">
+                                                    {stats.playerStats
+                                                        .sort((a, b) => b.attendanceRate - a.attendanceRate)
+                                                        .map((player) => (
+                                                            <div key={player.id} className="flex justify-between items-center">
+                                                                <div>
+                                                                    <span className="text-gray-800 dark:text-white">
+                                                                        {player.name}
+                                                                    </span>
+                                                                    <span className="text-sm text-gray-500 dark:text-gray-400 ml-2">
+                                                                        #{player.number}
+                                                                    </span>
+                                                                </div>
+                                                                <div className="flex items-center space-x-2">
+                                                                    <span className="font-medium text-primary">
+                                                                        {player.attendanceRate.toFixed(1)}%
+                                                                    </span>
+                                                                    {player.trend === 'up' ? (
+                                                                        <TrendingUp className="w-4 h-4 text-green-500" />
+                                                                    ) : (
+                                                                        <TrendingDown className="w-4 h-4 text-red-500" />
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                </div>
+                                            </div>
+
+                                            {/* Add the new absence stats component */}
+                                            <AbsenceStatsByReason stats={stats} />
+                                        </div>
+                                    );
+                                })()}
+
+                                {/* Add the Player Stats section */}
+                                {teamId && showPlayerStats && (() => {
+                                    const stats = calculateAttendanceStats();
+                                    if (!stats) return null;
+
+                                    return (
+                                        <div className="space-y-4 mt-6">
+                                            {teamPlayers
+                                                .filter(hasPlayerId)
+                                                .map(player => {
+                                                    const playerStat = stats.playerStats.find(p => p.id === player.id);
+                                                    if (!playerStat) return null;
+                                                    
+                                                    return (
+                                                        <PlayerStats
+                                                            key={player.id}
+                                                            player={player}
+                                                            sessions={trainingSessions}
+                                                            attendanceMap={attendanceMap}
+                                                            teamAverageRate={stats.teamRate}
+                                                            trend={playerStat.trend}
+                                                        />
+                                                    );
+                                                })}
+                                        </div>
+                                    );
+                                })()}
+                            </div>
+                        )}
+                    </div>
+
+                    {!teamId ? (
+                        <p className="text-center text-gray-500 dark:text-gray-400 py-8">
+                            Please select a team to view training sessions.
+                        </p>
+                    ) : trainingSessions.length === 0 ? (
+                        <p className="text-center text-gray-500 dark:text-gray-400 py-8">
+                            No training sessions found. Create one to get started.
+                        </p>
+                    ) : (
+                        <div className="space-y-4">
+                            {trainingSessions
+                                .sort((a, b) => b.date.getTime() - a.date.getTime())
+                                .map((session) => (
+                                    <div 
+                                        key={session.id}
+                                        className={`bg-white dark:bg-secondary/50 rounded-xl p-4 shadow-md hover:shadow-lg transition-shadow cursor-pointer
+                                            ${selectedSession === session.id ? 'ring-2 ring-primary' : ''}`}
+                                        onClick={() => handleSessionClick(session)}
+                                    >
+                                        <div className="flex justify-between items-center mb-3">
+                                            <div>
+                                                <h3 className="font-medium dark:text-white flex items-center">
+                                                    {new Date(session.date).toLocaleDateString(undefined, {
+                                                        weekday: 'long',
+                                                        year: 'numeric',
+                                                        month: 'long',
+                                                        day: 'numeric'
+                                                    })}
+                                                    <span className="mx-2 text-gray-400">•</span>
+                                                    <span className="text-gray-500 dark:text-gray-400">
+                                                        {getTeamName(session.teamId)}
+                                                    </span>
+                                                </h3>
+                                            </div>
+                                            <div className="flex items-center space-x-4">
+                                                <span className="text-sm text-gray-500 dark:text-gray-400">
+                                                    {Object.values(attendanceMap[session.id] || {}).filter(present => present).length} / {sessionPlayerCounts[session.id] || 0} present
+                                                </span>
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setSessionToDelete(session);
+                                                        setShowDeleteConfirmModal(true);
+                                                    }}
+                                                    className="p-2 rounded-full hover:bg-red-50 text-red-500 dark:hover:bg-red-900/20"
+                                                >
+                                                    <X className="w-4 h-4" />
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        {selectedSession === session.id && validPlayers.length > 0 && (
+                                            <div className="mt-4 space-y-2">
+                                                <div className="h-px bg-gray-200 dark:bg-gray-700 my-3"></div>
+                                                {validPlayers.map((player) => (
+                                                    <div 
+                                                        key={`${session.id}-${player.id}`}
+                                                        className="flex items-center justify-between p-2 bg-gray-50 dark:bg-secondary-dark rounded-lg"
+                                                    >
+                                                        <div className="flex items-center space-x-3">
+                                                            <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center">
+                                                                <span className="text-primary font-medium">{player.number}</span>
+                                                            </div>
+                                                            <div>
+                                                                <p className="font-medium dark:text-white">{player.name}</p>
+                                                                <p className="text-sm text-gray-500 dark:text-gray-400">{player.position}</p>
+                                                            </div>
                                                         </div>
                                                         <div className="flex items-center space-x-2">
-                                                            <span className="font-medium text-primary">
-                                                                {player.attendanceRate.toFixed(1)}%
-                                                            </span>
-                                                            {player.trend === 'up' ? (
-                                                                <TrendingUp className="w-4 h-4 text-green-500" />
-                                                            ) : (
-                                                                <TrendingDown className="w-4 h-4 text-red-500" />
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                ))}
-                                        </div>
-                                    </div>
-
-                                    {/* Add the new absence stats component */}
-                                    <AbsenceStatsByReason stats={stats} />
-                                </div>
-                            );
-                        })()}
-
-                        {/* Add the Player Stats section */}
-                        {teamId && showPlayerStats && (() => {
-                            const stats = calculateAttendanceStats();
-                            if (!stats) return null;
-
-                            return (
-                                <div className="space-y-4 mt-6">
-                                    {teamPlayers
-                                        .filter(hasPlayerId)
-                                        .map(player => {
-                                            const playerStat = stats.playerStats.find(p => p.id === player.id);
-                                            if (!playerStat) return null;
-                                            
-                                            return (
-                                                <PlayerStats
-                                                    key={player.id}
-                                                    player={player}
-                                                    sessions={trainingSessions}
-                                                    attendanceMap={attendanceMap}
-                                                    teamAverageRate={stats.teamRate}
-                                                    trend={playerStat.trend}
-                                                />
-                                            );
-                                        })}
-                                </div>
-                            );
-                        })()}
-                    </div>
-                )}
-            </div>
-
-            {!teamId ? (
-                <p className="text-center text-gray-500 dark:text-gray-400 py-8">
-                    Please select a team to view training sessions.
-                </p>
-            ) : isLoading ? (
-                <div className="flex items-center justify-center py-8">
-                    <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary"></div>
-                </div>
-            ) : trainingSessions.length === 0 ? (
-                <p className="text-center text-gray-500 dark:text-gray-400 py-8">
-                    No training sessions found. Create one to get started.
-                </p>
-            ) : (
-                <div className="space-y-4">
-                    {trainingSessions
-                        .sort((a, b) => b.date.getTime() - a.date.getTime())
-                        .map((session) => (
-                            <div 
-                                key={session.id}
-                                className={`bg-white dark:bg-secondary/50 rounded-xl p-4 shadow-md hover:shadow-lg transition-shadow cursor-pointer
-                                    ${selectedSession === session.id ? 'ring-2 ring-primary' : ''}`}
-                                onClick={() => handleSessionClick(session)}
-                            >
-                                <div className="flex justify-between items-center mb-3">
-                                    <div>
-                                        <h3 className="font-medium dark:text-white flex items-center">
-                                            {new Date(session.date).toLocaleDateString(undefined, {
-                                                weekday: 'long',
-                                                year: 'numeric',
-                                                month: 'long',
-                                                day: 'numeric'
-                                            })}
-                                            <span className="mx-2 text-gray-400">•</span>
-                                            <span className="text-gray-500 dark:text-gray-400">
-                                                {getTeamName(session.teamId)}
-                                            </span>
-                                        </h3>
-                                    </div>
-                                    <div className="flex items-center space-x-4">
-                                        <span className="text-sm text-gray-500 dark:text-gray-400">
-                                            {Object.values(attendanceMap[session.id] || {}).filter(present => present).length} / {sessionPlayerCounts[session.id] || 0} present
-                                        </span>
-                                        <button
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                setSessionToDelete(session);
-                                                setShowDeleteConfirmModal(true);
-                                            }}
-                                            className="p-2 rounded-full hover:bg-red-50 text-red-500 dark:hover:bg-red-900/20"
-                                        >
-                                            <X className="w-4 h-4" />
-                                        </button>
-                                    </div>
-                                </div>
-
-                                {selectedSession === session.id && validPlayers.length > 0 && (
-                                    <div className="mt-4 space-y-2">
-                                        <div className="h-px bg-gray-200 dark:bg-gray-700 my-3"></div>
-                                        {validPlayers.map((player) => (
-                                            <div 
-                                                key={`${session.id}-${player.id}`}
-                                                className="flex items-center justify-between p-2 bg-gray-50 dark:bg-secondary-dark rounded-lg"
-                                            >
-                                                <div className="flex items-center space-x-3">
-                                                    <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center">
-                                                        <span className="text-primary font-medium">{player.number}</span>
-                                                    </div>
-                                                    <div>
-                                                        <p className="font-medium dark:text-white">{player.name}</p>
-                                                        <p className="text-sm text-gray-500 dark:text-gray-400">{player.position}</p>
-                                                    </div>
-                                                </div>
-                                                <div className="flex items-center space-x-2">
-                                                    <button
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            updateAttendance(session.id!, player.id, true);
-                                                        }}
-                                                        className={`p-2 rounded-full ${
-                                                            attendanceMap[session.id]?.[player.id] === true
-                                                                ? 'bg-green-100 text-green-600 dark:bg-green-900/20 dark:text-green-400'
-                                                                : 'hover:bg-gray-100 text-gray-400 dark:hover:bg-gray-700'
-                                                        }`}
-                                                    >
-                                                        <Check className="w-5 h-5" />
-                                                    </button>
-                                                    <button
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            setSelectedPlayerForReason({
-                                                                sessionId: session.id!,
-                                                                playerId: player.id,
-                                                                playerName: player.name
-                                                            });
-                                                            setShowAbsenceReasonModal(true);
-                                                        }}
-                                                        className={`p-2 rounded-full ${
-                                                            attendanceMap[session.id]?.[player.id] === false
-                                                                ? 'bg-red-100 text-red-600 dark:bg-red-900/20 dark:text-red-400'
-                                                                : 'hover:bg-gray-100 text-gray-400 dark:hover:bg-gray-700'
-                                                        }`}
-                                                    >
-                                                        <X className="w-5 h-5" />
-                                                    </button>
-                                                    {attendanceMap[session.id]?.[player.id] === false && (
-                                                        <>
-                                                            {session.attendance?.find(a => a.playerId === player.id)?.absenceReason && (
-                                                                <div className="p-2">
-                                                                    {getReasonIcon(session.attendance?.find(a => a.playerId === player.id)?.absenceReason)}
-                                                                </div>
-                                                            )}
+                                                            <button
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    updateAttendance(session.id!, player.id, true);
+                                                                }}
+                                                                className={`p-2 rounded-full ${
+                                                                    attendanceMap[session.id]?.[player.id] === true
+                                                                        ? 'bg-green-100 text-green-600 dark:bg-green-900/20 dark:text-green-400'
+                                                                        : 'hover:bg-gray-100 text-gray-400 dark:hover:bg-gray-700'
+                                                                }`}
+                                                            >
+                                                                <Check className="w-5 h-5" />
+                                                            </button>
                                                             <button
                                                                 onClick={(e) => {
                                                                     e.stopPropagation();
@@ -884,20 +870,47 @@ const Training: React.FC<TrainingProps> = ({ teamId, userId, players, teams, onT
                                                                     });
                                                                     setShowAbsenceReasonModal(true);
                                                                 }}
-                                                                className="p-2 rounded-full hover:bg-gray-100 text-gray-400 dark:hover:bg-gray-700"
+                                                                className={`p-2 rounded-full ${
+                                                                    attendanceMap[session.id]?.[player.id] === false
+                                                                        ? 'bg-red-100 text-red-600 dark:bg-red-900/20 dark:text-red-400'
+                                                                        : 'hover:bg-gray-100 text-gray-400 dark:hover:bg-gray-700'
+                                                                }`}
                                                             >
-                                                                <MoreHorizontal className="w-5 h-5" />
+                                                                <X className="w-5 h-5" />
                                                             </button>
-                                                        </>
-                                                    )}
-                                                </div>
+                                                            {attendanceMap[session.id]?.[player.id] === false && (
+                                                                <>
+                                                                    {session.attendance?.find(a => a.playerId === player.id)?.absenceReason && (
+                                                                        <div className="p-2">
+                                                                            {getReasonIcon(session.attendance?.find(a => a.playerId === player.id)?.absenceReason)}
+                                                                        </div>
+                                                                    )}
+                                                                    <button
+                                                                        onClick={(e) => {
+                                                                            e.stopPropagation();
+                                                                            setSelectedPlayerForReason({
+                                                                                sessionId: session.id!,
+                                                                                playerId: player.id,
+                                                                                playerName: player.name
+                                                                            });
+                                                                            setShowAbsenceReasonModal(true);
+                                                                        }}
+                                                                        className="p-2 rounded-full hover:bg-gray-100 text-gray-400 dark:hover:bg-gray-700"
+                                                                    >
+                                                                        <MoreHorizontal className="w-5 h-5" />
+                                                                    </button>
+                                                                </>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                ))}
                                             </div>
-                                        ))}
+                                        )}
                                     </div>
-                                )}
-                            </div>
-                        ))}
-                </div>
+                                ))}
+                        </div>
+                    )}
+                </>
             )}
 
             {showNewSessionModal && (
