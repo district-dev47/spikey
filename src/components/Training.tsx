@@ -379,10 +379,18 @@ const Training: React.FC<TrainingProps> = ({ teamId, userId, players, teams, onT
                 return attendanceMap[session.id]?.[player.id] === true ? acc + 1 : acc;
             }, 0);
             
+            const attendanceRate = (playerAttendance / validSessions.length) * 100;
+            
+            // Compare with team average to determine trend
+            let trend: 'up' | 'down' = 'up';
+            if (attendanceRate < teamAttendanceRate) {
+                trend = 'down';
+            }
+            
             return {
                 ...player,
-                attendanceRate: (playerAttendance / validSessions.length) * 100,
-                trend: 'up'
+                attendanceRate,
+                trend
             };
         });
 
@@ -527,7 +535,11 @@ const Training: React.FC<TrainingProps> = ({ teamId, userId, players, teams, onT
                                                             <span className="font-medium text-primary">
                                                                 {player.attendanceRate.toFixed(1)}%
                                                             </span>
-                                                            <TrendingUp className="w-4 h-4 text-green-500" />
+                                                            {player.trend === 'up' ? (
+                                                                <TrendingUp className="w-4 h-4 text-green-500" />
+                                                            ) : (
+                                                                <TrendingDown className="w-4 h-4 text-red-500" />
+                                                            )}
                                                         </div>
                                                     </div>
                                                 ))}
@@ -546,15 +558,21 @@ const Training: React.FC<TrainingProps> = ({ teamId, userId, players, teams, onT
                                 <div className="space-y-4 mt-6">
                                     {teamPlayers
                                         .filter(hasPlayerId)
-                                        .map(player => (
-                                            <PlayerStats
-                                                key={player.id}
-                                                player={player}
-                                                sessions={trainingSessions}
-                                                attendanceMap={attendanceMap}
-                                                teamAverageRate={stats.teamRate}
-                                            />
-                                        ))}
+                                        .map(player => {
+                                            const playerStat = stats.playerStats.find(p => p.id === player.id);
+                                            if (!playerStat) return null;
+                                            
+                                            return (
+                                                <PlayerStats
+                                                    key={player.id}
+                                                    player={player}
+                                                    sessions={trainingSessions}
+                                                    attendanceMap={attendanceMap}
+                                                    teamAverageRate={stats.teamRate}
+                                                    trend={playerStat.trend}
+                                                />
+                                            );
+                                        })}
                                 </div>
                             );
                         })()}

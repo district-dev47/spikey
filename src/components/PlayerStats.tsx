@@ -8,6 +8,7 @@ interface PlayerStatsProps {
     sessions: TrainingSession[];
     attendanceMap: { [key: string]: { [key: string]: boolean } };
     teamAverageRate: number;
+    trend: 'up' | 'down';
 }
 
 interface PlayerDetailedStats {
@@ -23,7 +24,8 @@ const PlayerStats: React.FC<PlayerStatsProps> = ({
     player, 
     sessions, 
     attendanceMap,
-    teamAverageRate 
+    teamAverageRate,
+    trend 
 }) => {
     const calculateDetailedStats = (): PlayerDetailedStats => {
         const presentCount = sessions.reduce((count, session) => {
@@ -74,8 +76,11 @@ const PlayerStats: React.FC<PlayerStatsProps> = ({
                         {stats.attendanceRate.toFixed(1)}%
                     </p>
                     <div className="flex items-center justify-end space-x-1">
-                        {stats.trend === 'up' && <TrendingUp className="w-4 h-4 text-green-500" />}
-                        {stats.trend === 'down' && <TrendingDown className="w-4 h-4 text-red-500" />}
+                        {trend === 'up' ? (
+                            <TrendingUp className="w-4 h-4 text-green-500" />
+                        ) : (
+                            <TrendingDown className="w-4 h-4 text-red-500" />
+                        )}
                         <span className="text-sm text-gray-500">
                             vs team avg {teamAverageRate.toFixed(1)}%
                         </span>
