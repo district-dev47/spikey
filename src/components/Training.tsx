@@ -425,10 +425,27 @@ const Training: React.FC<TrainingProps> = ({ teamId, userId, players, teams, onT
             };
         });
 
+        // Add absence by reason statistics
+        const absencesByReason = validPlayers.map(player => {
+            const absences = validSessions.reduce((acc, session) => {
+                const attendance = session.attendance?.find(a => a.playerId === player.id);
+                if (attendance && !attendance.present && attendance.absenceReason) {
+                    acc[attendance.absenceReason] = (acc[attendance.absenceReason] || 0) + 1;
+                }
+                return acc;
+            }, {} as { [key in AbsenceReason]?: number });
+
+            return {
+                player,
+                absences
+            };
+        });
+
         return {
             teamRate: teamAttendanceRate,
             recentSessions,
-            playerStats
+            playerStats,
+            absencesByReason
         };
     };
 
@@ -483,6 +500,79 @@ const Training: React.FC<TrainingProps> = ({ teamId, userId, players, teams, onT
                             Cancel
                         </button>
                     </div>
+                </div>
+            </div>
+        );
+    };
+
+    // Add this component for the absence stats section
+    const AbsenceStatsByReason = ({ stats }: { stats: ReturnType<typeof calculateAttendanceStats> }) => {
+        const [selectedReason, setSelectedReason] = useState<AbsenceReason>('Sick/Injured');
+        const reasons: { value: AbsenceReason; icon: JSX.Element }[] = [
+            { value: 'Sick/Injured', icon: <Stethoscope className="w-5 h-5" /> },
+            { value: 'School', icon: <School className="w-5 h-5" /> },
+            { value: 'Party/Holiday', icon: <Music className="w-5 h-5" /> },
+            { value: 'Work', icon: <Briefcase className="w-5 h-5" /> },
+            { value: 'Family', icon: <Users2 className="w-5 h-5" /> },
+            { value: 'Unknown', icon: <HelpCircle className="w-5 h-5" /> }
+        ];
+
+        // Sort players by number of absences for selected reason
+        const sortedPlayers = stats.absencesByReason
+            .filter(({ absences }) => absences[selectedReason] && absences[selectedReason]! > 0)
+            .sort((a, b) => (b.absences[selectedReason] || 0) - (a.absences[selectedReason] || 0));
+
+        return (
+            <div className="bg-white dark:bg-secondary/50 rounded-xl p-4 shadow-sm">
+                <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+                    Absences by Reason
+                </h4>
+                
+                {/* Reason selector */}
+                <div className="flex flex-wrap gap-2 mb-4">
+                    {reasons.map(({ value, icon }) => (
+                        <button
+                            key={value}
+                            onClick={() => setSelectedReason(value)}
+                            className={`flex items-center space-x-2 px-3 py-1.5 rounded-lg border transition-colors ${
+                                selectedReason === value
+                                    ? 'border-primary bg-primary/10 text-primary'
+                                    : 'border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700'
+                            }`}
+                        >
+                            {icon}
+                            <span className="text-sm">{value}</span>
+                        </button>
+                    ))}
+                </div>
+
+                {/* Player list */}
+                <div className="space-y-3">
+                    {sortedPlayers.length === 0 ? (
+                        <p className="text-gray-500 dark:text-gray-400 text-center py-4">
+                            No absences recorded for this reason
+                        </p>
+                    ) : (
+                        sortedPlayers.map(({ player, absences }) => (
+                            <div key={player.id} className="flex items-center justify-between">
+                                <div className="flex items-center space-x-3">
+                                    <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center">
+                                        <span className="text-primary font-medium">{player.number}</span>
+                                    </div>
+                                    <div>
+                                        <p className="font-medium dark:text-white">{player.name}</p>
+                                        <p className="text-sm text-gray-500 dark:text-gray-400">{player.position}</p>
+                                    </div>
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                    <span className="text-lg font-semibold text-primary">
+                                        {absences[selectedReason]}
+                                    </span>
+                                    {getReasonIcon(selectedReason)}
+                                </div>
+                            </div>
+                        ))
+                    )}
                 </div>
             </div>
         );
@@ -635,6 +725,9 @@ const Training: React.FC<TrainingProps> = ({ teamId, userId, players, teams, onT
                                                 ))}
                                         </div>
                                     </div>
+
+                                    {/* Add the new absence stats component */}
+                                    <AbsenceStatsByReason stats={stats} />
                                 </div>
                             );
                         })()}
