@@ -187,16 +187,11 @@ const Training: React.FC<TrainingProps> = ({ teamId, userId, players, teams, onT
     };
 
     const createTrainingSession = async () => {
-        if (!selectedTeamForNewSession) {
-            alert('Please select a team first');
-            return;
-        }
-
         try {
             const newSession: TrainingSession = {
                 date: new Date(selectedDate),
                 userId,
-                teamId: selectedTeamForNewSession,
+                teamId: teamId,
                 attendance: []
             };
 
@@ -222,7 +217,6 @@ const Training: React.FC<TrainingProps> = ({ teamId, userId, players, teams, onT
 
             setTrainingSessions(prev => [...prev, newSessionWithId]);
             setSelectedSession(docRef.id);
-            onTeamSelect(selectedTeamForNewSession);
             setShowNewSessionModal(false);
         } catch (error) {
             console.error('Error in createTrainingSession:', error);
@@ -454,7 +448,10 @@ const Training: React.FC<TrainingProps> = ({ teamId, userId, players, teams, onT
                                 <span>Player Stats</span>
                             </button>
                             <button
-                                onClick={() => setShowNewSessionModal(true)}
+                                onClick={() => {
+                                    setSelectedTeamForNewSession(teamId);
+                                    setShowNewSessionModal(true);
+                                }}
                                 className="flex items-center space-x-1 border border-primary text-primary px-3 py-1.5 rounded-lg hover:bg-primary/10 transition-colors"
                             >
                                 <Plus className="w-4 h-4" />
@@ -730,10 +727,7 @@ const Training: React.FC<TrainingProps> = ({ teamId, userId, players, teams, onT
                                 Cancel
                             </button>
                             <button
-                                onClick={() => {
-                                    setSelectedTeamForNewSession(teamId);
-                                    createTrainingSession();
-                                }}
+                                onClick={createTrainingSession}
                                 disabled={!selectedDate}
                                 className="px-4 py-2 bg-primary text-white rounded-lg disabled:opacity-50"
                             >
