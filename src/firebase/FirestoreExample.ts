@@ -1,4 +1,4 @@
-import { collection, addDoc, getDocs, query, doc, updateDoc, deleteDoc, getDoc, DocumentReference, where, writeBatch } from 'firebase/firestore';
+import { collection, addDoc, getDocs, query, doc, updateDoc, deleteDoc, getDoc, DocumentReference, where, writeBatch, Timestamp } from 'firebase/firestore';
 import { db } from './firebase';
 
 export interface TeamData {
@@ -25,6 +25,7 @@ export interface LineupPlayer {
   number: string;
   position: string;
   rotationPosition: number;
+  joinedAt: string | Timestamp;
 }
 
 export interface Substitution {
@@ -268,6 +269,8 @@ async function getTeamGames(teamId: string) {
 
 async function updateGameSet(gameId: string, set: Set) {
   try {
+    console.log('Updating game set with data:', { gameId, set });
+
     const gameRef = doc(db, 'games', gameId);
     const gameDoc = await getDoc(gameRef);
     
@@ -277,18 +280,60 @@ async function updateGameSet(gameId: string, set: Set) {
     
     const game = gameDoc.data() as Game;
     let updatedSets = [...(game.sets || [])];
-    
+
+    // Convert Timestamp to string in lineup data and remove undefined values
+    const sanitizedSet: Set = {
+      number: set.number,
+      lineup: set.lineup.map(player => ({
+        id: player.id || '',
+        name: player.name || '',
+        number: player.number || '',
+        position: player.position || '',
+        rotationPosition: player.rotationPosition || 0,
+        joinedAt: player.joinedAt instanceof Timestamp 
+          ? player.joinedAt.toDate().toISOString()
+          : typeof player.joinedAt === 'string' 
+            ? player.joinedAt 
+            : new Date().toISOString()
+      })),
+      // Only include score if it exists
+      ...(set.score && { score: set.score }),
+      // Always include substitutions array, even if empty
+      substitutions: (set.substitutions || []).map(sub => ({
+        outPlayer: {
+          id: sub.outPlayer.id || '',
+          name: sub.outPlayer.name || '',
+          number: sub.outPlayer.number || '',
+          position: sub.outPlayer.position || '',
+          rotationPosition: sub.outPlayer.rotationPosition || 0,
+          joinedAt: sub.outPlayer.joinedAt instanceof Timestamp 
+            ? sub.outPlayer.joinedAt.toDate().toISOString()
+            : typeof sub.outPlayer.joinedAt === 'string'
+              ? sub.outPlayer.joinedAt
+              : new Date().toISOString()
+        },
+        inPlayer: {
+          id: sub.inPlayer.id || '',
+          name: sub.inPlayer.name || '',
+          number: sub.inPlayer.number || '',
+          position: sub.inPlayer.position || '',
+          rotationPosition: sub.inPlayer.rotationPosition || 0,
+          joinedAt: sub.inPlayer.joinedAt instanceof Timestamp 
+            ? sub.inPlayer.joinedAt.toDate().toISOString()
+            : typeof sub.inPlayer.joinedAt === 'string'
+              ? sub.inPlayer.joinedAt
+              : new Date().toISOString()
+        },
+        currentScore: sub.currentScore
+      }))
+    };
+
     // Find or add the set
-    const setIndex = updatedSets.findIndex(s => s.number === set.number);
+    const setIndex = updatedSets.findIndex(s => s.number === sanitizedSet.number);
     if (setIndex >= 0) {
-      // Preserve existing substitutions if not provided in the update
-      const existingSubstitutions = updatedSets[setIndex].substitutions || [];
-      updatedSets[setIndex] = {
-        ...set,
-        substitutions: set.substitutions || existingSubstitutions
-      };
+      updatedSets[setIndex] = sanitizedSet;
     } else {
-      updatedSets.push(set);
+      updatedSets.push(sanitizedSet);
     }
     
     updatedSets = updatedSets.sort((a, b) => a.number - b.number);
@@ -307,45 +352,39 @@ async function updateGameSet(gameId: string, set: Set) {
       },
       { team: 0, opponent: 0 }
     );
-    
+
     let status: 'win' | 'loss' | 'in-progress' = 'in-progress';
     let finalScore = null;
 
-    // Game status logic:
-    // 1. Always play 4 sets
-    // 2. If after 4 sets it's tied 2-2, play fifth set
-    // 3. If one team wins 3 sets, they win the match but still play 4th set
     if (updatedSets.length === 5) {
-      // Fifth set is decisive
-      if (set.score) {
-        status = set.score.team > set.score.opponent ? 'win' : 'loss';
+      if (sanitizedSet.score) {
+        status = sanitizedSet.score.team > sanitizedSet.score.opponent ? 'win' : 'loss';
         finalScore = {
-          team: setsWon.team + (set.score.team > set.score.opponent ? 1 : 0),
-          opponent: setsWon.opponent + (set.score.opponent > set.score.team ? 1 : 0)
+          team: setsWon.team + (sanitizedSet.score.team > sanitizedSet.score.opponent ? 1 : 0),
+          opponent: setsWon.opponent + (sanitizedSet.score.opponent > sanitizedSet.score.team ? 1 : 0)
         };
       }
     } else if (updatedSets.length === 4) {
-      // After 4 sets
       if (setsWon.team === 2 && setsWon.opponent === 2) {
-        // Tied 2-2, need fifth set
         status = 'in-progress';
       } else {
-        // One team has won 3 sets
         status = setsWon.team > setsWon.opponent ? 'win' : 'loss';
         finalScore = setsWon;
       }
     }
 
-    const updateData: any = {
+    // Remove any undefined values from the update data
+    const updateData = {
       sets: updatedSets,
-      status
+      status,
+      ...(finalScore && { finalScore })
     };
-    
-    if (finalScore) {
-      updateData.finalScore = finalScore;
-    }
 
-    await updateDoc(gameRef, updateData);
+    // Remove any undefined values recursively
+    const cleanData = JSON.parse(JSON.stringify(updateData));
+    console.log('Clean update data:', cleanData);
+
+    await updateDoc(gameRef, cleanData);
 
     return {
       sets: updatedSets,
@@ -354,6 +393,12 @@ async function updateGameSet(gameId: string, set: Set) {
     };
   } catch (e) {
     console.error("Error updating game set:", e);
+    if (e instanceof Error) {
+      console.error('Error details:', {
+        message: e.message,
+        stack: e.stack
+      });
+    }
     throw e;
   }
 }

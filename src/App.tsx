@@ -60,6 +60,12 @@ interface Game {
   };
 }
 
+interface NewGame {
+  teamId: string;
+  opponent: string;
+  date: string;
+}
+
 function App() {
   const [darkMode, setDarkMode] = useState(true);
   const [selectedTeam, setSelectedTeam] = useState<string | null>(null);
@@ -77,9 +83,10 @@ function App() {
     number: '',
     position: 'Setter'
   });
-  const [newGame, setNewGame] = useState({
+  const [newGame, setNewGame] = useState<NewGame>({
     teamId: '',
     opponent: '',
+    date: new Date().toISOString().split('T')[0]
   });
   const [currentLineup, setCurrentLineup] = useState<LineupPlayer[]>([]);
   const [selectedGame, setSelectedGame] = useState<Game | null>(null);
@@ -317,13 +324,13 @@ function App() {
   };
 
   const handleAddGame = async () => {
-    if (newGame.teamId && newGame.opponent && user) {
+    if (newGame.teamId && newGame.opponent && newGame.date && user) {
       try {
         // Create initial game data
         const newGameData = {
           teamId: newGame.teamId,
           opponent: newGame.opponent,
-          date: new Date().toISOString().split('T')[0],
+          date: newGame.date,
           status: 'in-progress' as const,
           sets: [] as Set[],
           userId: user.uid,
@@ -339,10 +346,10 @@ function App() {
 
         setGames(prevGames => [...prevGames, newGameEntry]);
         setSelectedGame(newGameEntry);
-        setNewGame({ teamId: '', opponent: '' });
+        setNewGame({ teamId: '', opponent: '', date: new Date().toISOString().split('T')[0] });
         setShowNewGameModal(false);
         setCurrentSetNumber(1);
-        setCurrentLineup([]); // Clear the lineup when starting a new game
+        setCurrentLineup([]);
         setShowLineupModal(true);
       } catch (error) {
         console.error("Error creating game:", error);
@@ -354,36 +361,35 @@ function App() {
   const handleSetLineup = async () => {
     if (selectedGame && currentLineup.length === 6) {
       try {
-        // For a new game, ensure sets array exists
-        const currentSets = selectedGame.sets || [];
-        
-        // Find existing set or create new one
-        const existingSetIndex = currentSets.findIndex(s => s.number === currentSetNumber);
-        const existingSet = existingSetIndex >= 0 ? currentSets[existingSetIndex] : null;
-        
-        // Create new set with only defined values
+        console.log('Setting lineup with data:', {
+          selectedGame,
+          currentLineup,
+          currentSetNumber
+        });
+
+        // Ensure player IDs are set correctly and all required fields are present
+        const lineupWithIds = currentLineup.map(player => ({
+          id: players[selectedGame.teamId]?.find(p => 
+            p.name === player.name && 
+            p.number === player.number
+          )?.id || '',
+          name: player.name,
+          number: player.number,
+          position: player.position,
+          rotationPosition: player.rotationPosition
+        }));
+
         const newSet: Set = {
           number: currentSetNumber,
-          lineup: currentLineup,
+          lineup: lineupWithIds,
+          score: undefined,
+          substitutions: []
         };
 
-        // Only add these properties if they exist
-        if (existingSet?.substitutions) {
-          newSet.substitutions = existingSet.substitutions;
-        }
-        if (existingSet?.score) {
-          newSet.score = existingSet.score;
-        }
-
-        // Update the game with the new set
-        const updatedSets = [...currentSets];
-        if (existingSetIndex >= 0) {
-          updatedSets[existingSetIndex] = newSet;
-        } else {
-          updatedSets.push(newSet);
-        }
+        console.log('Sending set data:', newSet);
 
         const result = await updateGameSet(selectedGame.id, newSet);
+        console.log('Update result:', result);
         
         const updatedGame: Game = {
           ...selectedGame,
@@ -402,6 +408,12 @@ function App() {
         setActiveTab('games');
       } catch (error) {
         console.error("Error setting lineup:", error);
+        if (error instanceof Error) {
+          console.error('Error details:', {
+            message: error.message,
+            stack: error.stack
+          });
+        }
         alert("Failed to set lineup. Please try again.");
       }
     } else {
@@ -440,85 +452,65 @@ function App() {
           }
         }
 
+        // Get the existing set to preserve lineup
+        const existingSet = selectedGame.sets.find(s => s.number === currentSetNumber);
+        if (!existingSet || !existingSet.lineup) {
+          alert("Please set the lineup before entering the score");
+          setShowLineupModal(true);
+          return;
+        }
+
         const newSet: Set = {
           number: currentSetNumber,
-          lineup: currentLineup,
-          score: setScore
+          lineup: existingSet.lineup,  // Preserve the existing lineup
+          score: setScore,
+          substitutions: existingSet.substitutions || []  // Preserve any existing substitutions
         };
 
         const result = await updateGameSet(selectedGame.id, newSet);
 
-        // Count sets won by each team
-        const setsWon = result.sets.reduce(
-          (acc, set) => {
-            if (set.score) {
-              if (set.score.team > set.score.opponent) acc.team++;
-              else if (set.score.opponent > set.score.team) acc.opponent++;
-            }
-            return acc;
-          },
-          { team: 0, opponent: 0 }
-        );
-
-        // Determine if game is complete or needs a fifth set
-        let gameStatus: 'win' | 'loss' | 'in-progress' = 'in-progress';
-        let finalScore = undefined;
-
-        // Game status logic
-        if (currentSetNumber === 4) {
-          if (setsWon.team === 2 && setsWon.opponent === 2) {
-            // Tied after 4 sets, need fifth set
-            gameStatus = 'in-progress';
-          } else {
-            // One team has already won 3 sets, but we still played the 4th set
-            gameStatus = setsWon.team > setsWon.opponent ? 'win' : 'loss';
-            finalScore = setsWon;
-          }
-        } else if (currentSetNumber === 5) {
-          // Fifth set is decisive
-          gameStatus = setScore.team > setScore.opponent ? 'win' : 'loss';
-          finalScore = {
-            team: setsWon.team + (setScore.team > setScore.opponent ? 1 : 0),
-            opponent: setsWon.opponent + (setScore.opponent > setScore.team ? 1 : 0)
-          };
-        }
-
-        const updatedGame: Game = {
-          ...selectedGame,
-          sets: result.sets,
-          status: gameStatus,
-          finalScore: finalScore
-        };
-
-        // Update both the games state and selected game
+        // Update local state with proper type handling
         setGames(prevGames => 
           prevGames.map(game => 
-            game.id === selectedGame.id ? updatedGame : game
+            game.id === selectedGame.id 
+              ? {
+                  ...game,
+                  sets: result.sets,
+                  status: result.status,
+                  finalScore: result.finalScore || undefined
+                }
+              : game
           )
         );
-        setSelectedGame(updatedGame);
+
+        setSelectedGame(prev => prev ? {
+          ...prev,
+          sets: result.sets,
+          status: result.status,
+          finalScore: result.finalScore || undefined
+        } : null);
 
         setShowSetScoreModal(false);
         setSetScore({ team: 0, opponent: 0 });
 
-        if (gameStatus === 'in-progress') {
-          if (currentSetNumber === 4 && setsWon.team === 2 && setsWon.opponent === 2) {
+        if (result.status === 'in-progress') {
+          if (currentSetNumber === 4 && result.sets.reduce((acc, set) => 
+            set.score?.team > set.score?.opponent ? acc + 1 : acc, 0) === 2 &&
+            result.sets.reduce((acc, set) => 
+            set.score?.opponent > set.score?.team ? acc + 1 : acc, 0) === 2) {
             // If it's 2-2 after 4 sets, proceed to fifth set
             setCurrentSetNumber(5);
-            setActiveTab('games');
           } else if (currentSetNumber < 4) {
             // Always proceed to next set until 4 sets are played
             setCurrentSetNumber(prev => prev + 1);
-            setActiveTab('games');
           }
         } else {
-          const winningTeam = gameStatus === 'win' ? 'Your team' : 'Opponent';
-          alert(`Game Complete! ${winningTeam} won! Final sets: ${finalScore?.team}-${finalScore?.opponent}`);
-          setActiveTab('games');
+          const winningTeam = result.status === 'win' ? 'Your team' : 'Opponent';
+          alert(`Game Complete! ${winningTeam} won! Final sets: ${result.finalScore?.team}-${result.finalScore?.opponent}`);
         }
       } catch (error) {
-        console.error("Error updating game:", error);
-        alert("Failed to update game score. Please try again.");
+        console.error("Error updating set score:", error);
+        alert("Failed to update set score. Please try again.");
       }
     }
   };
@@ -1145,23 +1137,48 @@ function App() {
               </button>
             </div>
             <div className="space-y-4">
-              <select
-                value={newGame.teamId}
-                onChange={(e) => setNewGame({ ...newGame, teamId: e.target.value })}
-                className="w-full px-4 py-2 rounded-lg border dark:border-gray-600 dark:bg-secondary-dark dark:text-white"
-              >
-                <option value="">Select Team</option>
-                {teams.map((team) => (
-                  <option key={team.id} value={team.id}>{team.name}</option>
-                ))}
-              </select>
-              <input
-                type="text"
-                placeholder="Opponent Team Name"
-                value={newGame.opponent}
-                onChange={(e) => setNewGame({ ...newGame, opponent: e.target.value })}
-                className="w-full px-4 py-2 rounded-lg border dark:border-gray-600 dark:bg-secondary-dark dark:text-white"
-              />
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Team
+                </label>
+                <select
+                  value={newGame.teamId}
+                  onChange={(e) => setNewGame({ ...newGame, teamId: e.target.value })}
+                  className="w-full px-4 py-2 rounded-lg border dark:border-gray-600 dark:bg-secondary-dark dark:text-white"
+                >
+                  <option value="">Select Team</option>
+                  {teams.map((team) => (
+                    <option key={team.id} value={team.id}>
+                      {team.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Opponent
+                </label>
+                <input
+                  type="text"
+                  value={newGame.opponent}
+                  onChange={(e) => setNewGame({ ...newGame, opponent: e.target.value })}
+                  className="w-full px-4 py-2 rounded-lg border dark:border-gray-600 dark:bg-secondary-dark dark:text-white"
+                  placeholder="Enter opponent name"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Date
+                </label>
+                <input
+                  type="date"
+                  value={newGame.date}
+                  onChange={(e) => setNewGame({ ...newGame, date: e.target.value })}
+                  className="w-full px-4 py-2 rounded-lg border dark:border-gray-600 dark:bg-secondary-dark dark:text-white"
+                />
+              </div>
             </div>
             <div className="flex justify-end space-x-3 mt-6">
               <button
@@ -1172,7 +1189,7 @@ function App() {
               </button>
               <button
                 onClick={handleAddGame}
-                className="px-4 py-2 border border-primary text-primary rounded-lg hover:bg-primary/10 transition-colors"
+                className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors"
               >
                 Start Game
               </button>
