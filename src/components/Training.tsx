@@ -545,7 +545,7 @@ const Training: React.FC<TrainingProps> = ({ teamId, userId, players, teams, onT
                             className={`flex items-center space-x-2 px-3 py-1.5 rounded-lg border transition-colors ${
                                 selectedReason === value
                                     ? 'border-primary bg-primary/10 text-primary'
-                                    : 'border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700'
+                                    : 'border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200'
                             }`}
                         >
                             {icon}
