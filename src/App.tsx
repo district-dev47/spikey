@@ -342,6 +342,7 @@ function App() {
         setNewGame({ teamId: '', opponent: '' });
         setShowNewGameModal(false);
         setCurrentSetNumber(1);
+        setCurrentLineup([]); // Clear the lineup when starting a new game
         setShowLineupModal(true);
       } catch (error) {
         console.error("Error creating game:", error);
@@ -353,10 +354,34 @@ function App() {
   const handleSetLineup = async () => {
     if (selectedGame && currentLineup.length === 6) {
       try {
+        // For a new game, ensure sets array exists
+        const currentSets = selectedGame.sets || [];
+        
+        // Find existing set or create new one
+        const existingSetIndex = currentSets.findIndex(s => s.number === currentSetNumber);
+        const existingSet = existingSetIndex >= 0 ? currentSets[existingSetIndex] : null;
+        
+        // Create new set with only defined values
         const newSet: Set = {
           number: currentSetNumber,
           lineup: currentLineup,
         };
+
+        // Only add these properties if they exist
+        if (existingSet?.substitutions) {
+          newSet.substitutions = existingSet.substitutions;
+        }
+        if (existingSet?.score) {
+          newSet.score = existingSet.score;
+        }
+
+        // Update the game with the new set
+        const updatedSets = [...currentSets];
+        if (existingSetIndex >= 0) {
+          updatedSets[existingSetIndex] = newSet;
+        } else {
+          updatedSets.push(newSet);
+        }
 
         const result = await updateGameSet(selectedGame.id, newSet);
         
@@ -814,17 +839,37 @@ function App() {
                             {set.score.team} - {set.score.opponent}
                           </span>
                         ) : (
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setSelectedGame(game);
-                              setCurrentSetNumber(set.number);
-                              setShowSetScoreModal(true);
-                            }}
-                            className="text-primary text-sm hover:underline"
-                          >
-                            Enter Score
-                          </button>
+                          <div className="flex items-center space-x-2">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedGame(game);
+                                setCurrentSetNumber(set.number);
+                                // Initialize currentLineup with the existing lineup from this set
+                                if (set.lineup && set.lineup.length > 0) {
+                                  setCurrentLineup([...set.lineup]);
+                                } else {
+                                  setCurrentLineup([]);
+                                }
+                                setShowLineupModal(true);
+                              }}
+                              className="text-primary text-sm hover:underline"
+                            >
+                              Edit Lineup
+                            </button>
+                            <span className="text-gray-400">|</span>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedGame(game);
+                                setCurrentSetNumber(set.number);
+                                setShowSetScoreModal(true);
+                              }}
+                              className="text-primary text-sm hover:underline"
+                            >
+                              Enter Score
+                            </button>
+                          </div>
                         )}
                         <div className="flex items-center space-x-1">
                           <span className="text-xs text-gray-500 dark:text-gray-400">
@@ -839,7 +884,7 @@ function App() {
                             }}
                             className="p-1.5 text-primary hover:bg-primary/10 rounded-full"
                             title="Make Substitution"
-                            disabled={(set.substitutions?.length || 0) >= 6}
+                            disabled={(set.substitutions?.length || 0) >= 6 || set.score !== undefined}
                           >
                             <ArrowLeftRight className="w-4 h-4" />
                           </button>
@@ -860,6 +905,7 @@ function App() {
                             e.stopPropagation();
                             setSelectedGame(game);
                             setCurrentSetNumber(game.sets.length + 1);
+                            setCurrentLineup([]);
                             setShowLineupModal(true);
                           }}
                           className="w-full p-2 text-center text-primary text-sm border border-primary/30 rounded-lg mt-2"
@@ -1148,36 +1194,41 @@ function App() {
               </button>
             </div>
             <div className="space-y-4">
-              {[1, 2, 3, 4, 5, 6].map((position) => (
-                <div key={position} className="flex items-center space-x-2">
-                  <span className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center text-primary">
-                    {position}
-                  </span>
-                  <select
-                    className="flex-1 px-4 py-2 rounded-lg border dark:border-gray-600 dark:bg-secondary-dark dark:text-white"
-                    onChange={(e) => {
-                      const selectedPlayer = players[selectedGame?.teamId || ''].find(p => p.number === e.target.value);
-                      if (selectedPlayer) {
-                        const updatedLineup = [...currentLineup];
-                        const existingIndex = updatedLineup.findIndex(p => p.rotationPosition === position);
-                        if (existingIndex >= 0) {
-                          updatedLineup[existingIndex] = { ...selectedPlayer, rotationPosition: position };
-                        } else {
-                          updatedLineup.push({ ...selectedPlayer, rotationPosition: position });
+              {[1, 2, 3, 4, 5, 6].map((position) => {
+                const currentPlayer = currentLineup.find(p => p.rotationPosition === position);
+                
+                return (
+                  <div key={position} className="flex items-center space-x-2">
+                    <span className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center text-primary">
+                      {position}
+                    </span>
+                    <select
+                      value={currentPlayer?.number || ""}
+                      className="flex-1 px-4 py-2 rounded-lg border dark:border-gray-600 dark:bg-secondary-dark dark:text-white"
+                      onChange={(e) => {
+                        const selectedPlayer = players[selectedGame?.teamId || ''].find(p => p.number === e.target.value);
+                        if (selectedPlayer) {
+                          const updatedLineup = [...currentLineup];
+                          const existingIndex = updatedLineup.findIndex(p => p.rotationPosition === position);
+                          if (existingIndex >= 0) {
+                            updatedLineup[existingIndex] = { ...selectedPlayer, rotationPosition: position };
+                          } else {
+                            updatedLineup.push({ ...selectedPlayer, rotationPosition: position });
+                          }
+                          setCurrentLineup(updatedLineup);
                         }
-                        setCurrentLineup(updatedLineup);
-                      }
-                    }}
-                  >
-                    <option value="">Select Player</option>
-                    {selectedGame && players[selectedGame.teamId]?.map((player) => (
-                      <option key={player.number} value={player.number}>
-                        {player.name} ({player.position})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              ))}
+                      }}
+                    >
+                      <option value="">Select Player</option>
+                      {selectedGame && players[selectedGame.teamId]?.map((player) => (
+                        <option key={player.number} value={player.number}>
+                          {player.name} ({player.position})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                );
+              })}
             </div>
             <div className="flex justify-end space-x-3 mt-6">
               <button
