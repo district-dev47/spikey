@@ -57,6 +57,32 @@ interface Props {
     darkMode: boolean;
 }
 
+const calculateCurrentStreak = (teamGames: Game[]) => {
+    // Sort games by date in descending order (most recent first)
+    const sortedGames = [...teamGames]
+        .filter(game => game.status !== 'in-progress')
+        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+    if (sortedGames.length === 0) return { count: 0, type: 'none' as const };
+
+    let count = 1;
+    const firstResult = sortedGames[0].status;
+
+    // Count consecutive games with the same result
+    for (let i = 1; i < sortedGames.length; i++) {
+        if (sortedGames[i].status === firstResult) {
+            count++;
+        } else {
+            break;
+        }
+    }
+
+    return {
+        count,
+        type: firstResult
+    };
+};
+
 const StatsPage: React.FC<Props> = ({ selectedTeam, players, teams, onTeamSelect, games, userId, trainingSessions, darkMode }) => {
     const defaultStats = {
         totalSets: 0,
@@ -77,17 +103,11 @@ const StatsPage: React.FC<Props> = ({ selectedTeam, players, teams, onTeamSelect
         console.log('Starting stats calculation for team:', selectedTeam);
         console.log('Team players:', teamPlayers.map(p => p.name));
         
-        // Include all games that have sets with scores
-        const gamesWithScoredSets = teamGames.filter(game => 
-            game.sets?.some(set => set.score)
-        ).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-
         // Initialize stats using player names as keys
         const allStats: Record<string, ExtendedPlayerStats> = {};
         teamPlayers.forEach(player => {
             allStats[player.name] = {
                 totalSets: 0,
-                lastGameSets: 0,
                 setPercentage: 0,
                 totalGames: 0,
                 totalSubstitutions: 0,
@@ -102,49 +122,69 @@ const StatsPage: React.FC<Props> = ({ selectedTeam, players, teams, onTeamSelect
         });
 
         // Process each game's sets
-        gamesWithScoredSets.forEach(game => {
-            const scoredSets = game.sets?.filter(set => set.score) || [];
-            
-            scoredSets.forEach(set => {
-                const lineupNames = set.lineup?.map(p => p.name) || [];
-                const setId = `${game.id}-set${set.number}`;
-                
-                // Update stats for each player in the lineup
-                lineupNames.forEach(playerName => {
-                    if (allStats[playerName]) {
-                        allStats[playerName].setsPlayed.add(setId);
-                        allStats[playerName].gamesPlayed.add(game.id);
+        teamGames.forEach(game => {
+            // Only process completed games (status is 'win' or 'loss')
+            if (game.status === 'in-progress') return;
+
+            // Process all sets in the game
+            game.sets.forEach(set => {
+                if (!set.score) return; // Skip sets without scores
+
+                // Process lineup positions and substitutions
+                set.lineup?.forEach(player => {
+                    if (allStats[player.name]) {
+                        const setId = `${game.id}-set${set.number}`;
+                        allStats[player.name].setsPlayed.add(setId);
+                        allStats[player.name].gamesPlayed.add(game.id);
                         
-                        if (game === gamesWithScoredSets[0]) {
-                            allStats[playerName].lastGameSets = 1;
+                        // Track rotation position for average calculation
+                        allStats[player.name].rotationPositionSum += player.rotationPosition;
+                        allStats[player.name].rotationPositionCount += 1;
+
+                        // Track set wins
+                        if (set.score.team > set.score.opponent) {
+                            allStats[player.name].gamesWon++; // Using gamesWon to track sets won
+                        }
+                    }
+                });
+
+                // Count substitutions
+                set.substitutions?.forEach(sub => {
+                    if (allStats[sub.inPlayer.name]) {
+                        allStats[sub.inPlayer.name].totalSubstitutions += 1;
+                        // Also count set result for substituted players
+                        if (set.score.team > set.score.opponent) {
+                            allStats[sub.inPlayer.name].gamesWon++;
                         }
                     }
                 });
             });
         });
 
-        // Calculate total scored sets
-        const totalScoredSets = gamesWithScoredSets.reduce((acc, game) => 
-            acc + (game.sets?.filter(set => set.score)?.length || 0), 0
-        );
+        // Calculate total sets in completed games
+        const totalSets = teamGames.reduce((acc, game) => {
+            if (game.status !== 'in-progress') {
+                return acc + game.sets.length;
+            }
+            return acc;
+        }, 0);
 
-        // Convert to final format - use player names as keys instead of IDs
+        // Convert to final format
         return teamPlayers.reduce((acc, player) => {
             const stats = allStats[player.name];
             const setsCount = stats?.setsPlayed.size || 0;
+            const gamesPlayed = stats?.gamesPlayed.size || 0;
             
-            // Use player name as key instead of ID
             acc[player.name] = {
                 totalSets: setsCount,
-                lastGameSets: stats?.lastGameSets || 0,
-                setPercentage: totalScoredSets > 0 ? (setsCount / totalScoredSets) * 100 : 0,
-                totalGames: stats?.gamesPlayed.size || 0,
-                totalSubstitutions: 0,
+                setPercentage: totalSets > 0 ? (setsCount / totalSets) * 100 : 0,
+                totalGames: gamesPlayed,
+                totalSubstitutions: stats?.totalSubstitutions || 0,
                 averageRotationPosition: stats?.rotationPositionCount > 0 
-                    ? stats.rotationPositionSum / stats.rotationPositionCount 
+                    ? Math.round((stats.rotationPositionSum / stats.rotationPositionCount) * 10) / 10
                     : 0,
-                winPercentage: stats?.gamesPlayed.size > 0 
-                    ? (stats.gamesWon / stats.gamesPlayed.size) * 100 
+                winPercentage: setsCount > 0 
+                    ? Math.round((stats.gamesWon / setsCount) * 100)
                     : 0
             };
             return acc;
@@ -188,6 +228,23 @@ const StatsPage: React.FC<Props> = ({ selectedTeam, players, teams, onTeamSelect
                     </div>
 
                     <div className="bg-white dark:bg-secondary/50 rounded-xl p-4 shadow-lg">
+                        <h3 className="text-sm text-gray-600 dark:text-gray-400">Current Streak</h3>
+                        {(() => {
+                            const streak = calculateCurrentStreak(
+                                games.filter(game => game.teamId === selectedTeam)
+                            );
+                            if (streak.type === 'none') {
+                                return <p className="text-2xl font-bold text-primary">No games played</p>;
+                            }
+                            return (
+                                <p className="text-2xl font-bold text-primary">
+                                    {streak.count} {streak.type === 'win' ? 'Wins' : 'Losses'}
+                                </p>
+                            );
+                        })()}
+                    </div>
+
+                    <div className="bg-white dark:bg-secondary/50 rounded-xl p-4 shadow-lg">
                         <h3 className="text-lg font-semibold mb-4 dark:text-white">Player Statistics</h3>
                         <div className="overflow-x-auto">
                             <table className="w-full">
@@ -195,9 +252,8 @@ const StatsPage: React.FC<Props> = ({ selectedTeam, players, teams, onTeamSelect
                                     <tr className="text-left text-sm text-gray-500 dark:text-gray-400">
                                         <th className="pb-2">Player</th>
                                         <th className="pb-2">Total Played Sets</th>
-                                        <th className="pb-2">Last Game</th>
-                                        <th className="pb-2">Set %</th>
                                         <th className="pb-2">Games</th>
+                                        <th className="pb-2">Set %</th>
                                         <th className="pb-2">Win %</th>
                                         <th className="pb-2">Avg Pos</th>
                                         <th className="pb-2">Subs</th>
@@ -205,10 +261,8 @@ const StatsPage: React.FC<Props> = ({ selectedTeam, players, teams, onTeamSelect
                                 </thead>
                                 <tbody>
                                     {players[selectedTeam]?.map((player) => {
-                                        // Use player name to look up stats instead of ID
                                         const stats = playerStats[player.name] || {
                                             totalSets: 0,
-                                            lastGameSets: 0,
                                             setPercentage: 0,
                                             totalGames: 0,
                                             winPercentage: 0,
@@ -225,10 +279,9 @@ const StatsPage: React.FC<Props> = ({ selectedTeam, players, teams, onTeamSelect
                                                     </div>
                                                 </td>
                                                 <td className="py-2 dark:text-white">{stats.totalSets}</td>
-                                                <td className="py-2 dark:text-white">{stats.lastGameSets}</td>
-                                                <td className="py-2 dark:text-white">{stats.setPercentage.toFixed(1)}%</td>
                                                 <td className="py-2 dark:text-white">{stats.totalGames}</td>
-                                                <td className="py-2 dark:text-white">{stats.winPercentage.toFixed(1)}%</td>
+                                                <td className="py-2 dark:text-white">{stats.setPercentage.toFixed(1)}%</td>
+                                                <td className="py-2 dark:text-white">{stats.winPercentage}%</td>
                                                 <td className="py-2 dark:text-white">{stats.averageRotationPosition.toFixed(1)}</td>
                                                 <td className="py-2 dark:text-white">{stats.totalSubstitutions}</td>
                                             </tr>
