@@ -375,7 +375,6 @@ function App() {
         setShowLineupModal(false);
         setCurrentLineup([]);
         setActiveTab('games');
-        setShowSetScoreModal(true);
       } catch (error) {
         console.error("Error setting lineup:", error);
         alert("Failed to set lineup. Please try again.");
