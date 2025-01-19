@@ -344,13 +344,29 @@ const StatsPage: React.FC<Props> = ({ selectedTeam, players, teams, onTeamSelect
                                             totalSubstitutions: 0
                                         };
                                         
-                                        // Calculate if trend is up or down based on team average
-                                        const teamAverageWinRate = players[selectedTeam].reduce((acc, p) => {
-                                            const playerStat = playerStats[p.name] || { winPercentage: 0 };
-                                            return acc + playerStat.winPercentage;
-                                        }, 0) / players[selectedTeam].length;
+                                        // Get the team's overall set win percentage
+                                        const teamSetWinRate = (() => {
+                                            const teamGames = games.filter(game => 
+                                                game.teamId === selectedTeam && 
+                                                game.status !== 'in-progress'
+                                            );
+                                            
+                                            const setStats = teamGames.reduce((acc, game) => {
+                                                const completedSets = game.sets.filter(set => set.score);
+                                                acc.totalSets += completedSets.length;
+                                                acc.wonSets += completedSets.filter(set => 
+                                                    (set.score?.team || 0) > (set.score?.opponent || 0)
+                                                ).length;
+                                                return acc;
+                                            }, { totalSets: 0, wonSets: 0 });
 
-                                        const isUpTrend = stats.winPercentage >= teamAverageWinRate;
+                                            return setStats.totalSets > 0 
+                                                ? (setStats.wonSets / setStats.totalSets) * 100
+                                                : 0;
+                                        })();
+
+                                        // Compare player's win percentage against team's overall set win percentage
+                                        const isUpTrend = stats.winPercentage >= teamSetWinRate;
                                         
                                         return (
                                             <tr key={player.name} className="border-t dark:border-gray-700">
