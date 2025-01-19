@@ -880,6 +880,23 @@ function App() {
                           >
                             <ArrowLeftRight className="w-4 h-4" />
                           </button>
+                          {set.lineup && set.lineup.length > 0 && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                alert(
+                                  `Starting Lineup:\n\n${set.lineup
+                                    .sort((a, b) => a.rotationPosition - b.rotationPosition)
+                                    .map(player => `Position ${player.rotationPosition}: ${player.name} (${player.number})`)
+                                    .join('\n')}`
+                                );
+                              }}
+                              className="p-1.5 text-primary hover:bg-primary/10 rounded-full"
+                              title="View Lineup"
+                            >
+                              <Users className="w-4 h-4" />
+                            </button>
+                          )}
                         </div>
                       </div>
                     </div>

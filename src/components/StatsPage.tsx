@@ -83,6 +83,39 @@ const calculateCurrentStreak = (teamGames: Game[]) => {
     };
 };
 
+const calculatePlayerStats = (player: Player, games: Game[]) => {
+    // Filter games where this player appeared in any set
+    const playerGames = games.filter(game => 
+        game.sets.some(set => 
+            set.lineup?.some(p => p.id === player.id)
+        )
+    );
+
+    // Count total sets played in these games
+    const totalSetsInGames = playerGames.reduce((total, game) => 
+        total + game.sets.length, 0
+    );
+
+    // Count sets where player was in lineup
+    const setsPlayed = playerGames.reduce((total, game) => 
+        total + game.sets.filter(set => 
+            set.lineup?.some(p => p.id === player.id)
+        ).length, 0
+    );
+
+    // Calculate percentage based on actual sets played
+    const setPercentage = totalSetsInGames > 0 
+        ? (setsPlayed / totalSetsInGames) * 100 
+        : 0;
+
+    return {
+        gamesPlayed: playerGames.length,
+        setsPlayed: setsPlayed,
+        setPercentage: setPercentage,
+        // ... other stats ...
+    };
+};
+
 const StatsPage: React.FC<Props> = ({ selectedTeam, players, teams, onTeamSelect, games, userId, trainingSessions, darkMode }) => {
     const defaultStats = {
         totalSets: 0,
@@ -108,6 +141,7 @@ const StatsPage: React.FC<Props> = ({ selectedTeam, players, teams, onTeamSelect
         teamPlayers.forEach(player => {
             allStats[player.name] = {
                 totalSets: 0,
+                lastGameSets: 0,
                 setPercentage: 0,
                 totalGames: 0,
                 totalSubstitutions: 0,
@@ -123,12 +157,10 @@ const StatsPage: React.FC<Props> = ({ selectedTeam, players, teams, onTeamSelect
 
         // Process each game's sets
         teamGames.forEach(game => {
-            // Only process completed games (status is 'win' or 'loss')
             if (game.status === 'in-progress') return;
 
-            // Process all sets in the game
             game.sets.forEach(set => {
-                if (!set.score) return; // Skip sets without scores
+                if (!set.score) return;
 
                 // Process lineup positions and substitutions
                 set.lineup?.forEach(player => {
@@ -137,23 +169,20 @@ const StatsPage: React.FC<Props> = ({ selectedTeam, players, teams, onTeamSelect
                         allStats[player.name].setsPlayed.add(setId);
                         allStats[player.name].gamesPlayed.add(game.id);
                         
-                        // Track rotation position for average calculation
                         allStats[player.name].rotationPositionSum += player.rotationPosition;
                         allStats[player.name].rotationPositionCount += 1;
 
-                        // Track set wins
-                        if (set.score.team > set.score.opponent) {
-                            allStats[player.name].gamesWon++; // Using gamesWon to track sets won
+                        if (set.score?.team > set.score?.opponent) {
+                            allStats[player.name].gamesWon++;
                         }
                     }
                 });
 
-                // Count substitutions
+                // Process substitutions
                 set.substitutions?.forEach(sub => {
                     if (allStats[sub.inPlayer.name]) {
                         allStats[sub.inPlayer.name].totalSubstitutions += 1;
-                        // Also count set result for substituted players
-                        if (set.score.team > set.score.opponent) {
+                        if (set.score?.team > set.score?.opponent) {
                             allStats[sub.inPlayer.name].gamesWon++;
                         }
                     }
@@ -161,23 +190,22 @@ const StatsPage: React.FC<Props> = ({ selectedTeam, players, teams, onTeamSelect
             });
         });
 
-        // Calculate total sets in completed games
-        const totalSets = teamGames.reduce((acc, game) => {
-            if (game.status !== 'in-progress') {
-                return acc + game.sets.length;
-            }
-            return acc;
-        }, 0);
-
         // Convert to final format
         return teamPlayers.reduce((acc, player) => {
             const stats = allStats[player.name];
             const setsCount = stats?.setsPlayed.size || 0;
             const gamesPlayed = stats?.gamesPlayed.size || 0;
             
+            // Calculate total sets in games where this player participated
+            const playerGames = new Set([...stats.gamesPlayed]);
+            const totalSetsInPlayerGames = teamGames
+                .filter(game => playerGames.has(game.id) && game.status !== 'in-progress')
+                .reduce((total, game) => total + game.sets.length, 0);
+            
             acc[player.name] = {
                 totalSets: setsCount,
-                setPercentage: totalSets > 0 ? (setsCount / totalSets) * 100 : 0,
+                lastGameSets: 0,
+                setPercentage: totalSetsInPlayerGames > 0 ? (setsCount / totalSetsInPlayerGames) * 100 : 0,
                 totalGames: gamesPlayed,
                 totalSubstitutions: stats?.totalSubstitutions || 0,
                 averageRotationPosition: stats?.rotationPositionCount > 0 
