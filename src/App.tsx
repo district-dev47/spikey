@@ -610,50 +610,48 @@ function App() {
     if (!selectedGame || !selectedSet || !substitution.outPlayer || !substitution.inPlayer) return;
 
     try {
-      // Create a new substitution record
-      const newSubstitution = {
-        outPlayer: substitution.outPlayer,
-        inPlayer: substitution.inPlayer,
-        currentScore: substitution.currentScore
-      };
+        // Create a new substitution record
+        const newSubstitution = {
+            outPlayer: substitution.outPlayer,
+            inPlayer: substitution.inPlayer,
+            currentScore: substitution.currentScore
+        };
 
-      // Update the set with the new substitution
-      const updatedSet = {
-        ...selectedSet,
-        lineup: selectedSet.lineup.map(player => 
-          player.number === substitution.outPlayer?.number 
-            ? { ...substitution.inPlayer!, rotationPosition: player.rotationPosition }
-            : player
-        ),
-        substitutions: [...(selectedSet.substitutions || []), newSubstitution]
-      };
+        // Create updated set WITHOUT modifying the original lineup
+        const updatedSet = {
+            ...selectedSet,
+            // Keep the original lineup unchanged
+            lineup: selectedSet.lineup,
+            // Just add the new substitution to the substitutions array
+            substitutions: [...(selectedSet.substitutions || []), newSubstitution]
+        };
 
-      // Update the game in Firebase
-      const result = await updateGameSet(selectedGame.id, updatedSet);
+        // Update the game in Firebase
+        const result = await updateGameSet(selectedGame.id, updatedSet);
 
-      // Update local state with proper type handling
-      setGames(prevGames => 
-        prevGames.map(game => 
-          game.id === selectedGame.id 
-            ? {
-                ...game,
-                sets: result.sets,
-                status: result.status,
-                finalScore: result.finalScore || undefined
-              }
-            : game
-        )
-      );
+        // Update local state
+        setGames(prevGames => 
+            prevGames.map(game => 
+                game.id === selectedGame.id 
+                    ? {
+                        ...game,
+                        sets: result.sets,
+                        status: result.status,
+                        finalScore: result.finalScore || undefined
+                    }
+                    : game
+            )
+        );
 
-      setShowSubstitutionModal(false);
-      setSubstitution({
-        outPlayer: null,
-        inPlayer: null,
-        currentScore: { team: 0, opponent: 0 }
-      });
+        setShowSubstitutionModal(false);
+        setSubstitution({
+            outPlayer: null,
+            inPlayer: null,
+            currentScore: { team: 0, opponent: 0 }
+        });
     } catch (error) {
-      console.error("Error making substitution:", error);
-      alert("Failed to make substitution. Please try again.");
+        console.error("Error making substitution:", error);
+        alert("Failed to make substitution. Please try again.");
     }
   };
 
