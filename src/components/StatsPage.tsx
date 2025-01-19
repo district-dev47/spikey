@@ -224,20 +224,27 @@ const StatsPage: React.FC<Props> = ({ selectedTeam, players, teams, onTeamSelect
 
     return (
         <div className="p-4">
-            <div className="mb-4">
+            <div className="flex items-center justify-between mb-6">
+                <h2 className="text-lg font-semibold dark:text-white">Statistics</h2>
                 <select
                     value={selectedTeam || ''}
                     onChange={(e) => onTeamSelect(e.target.value)}
-                    className="w-full px-4 py-2 rounded-lg border dark:border-gray-600 dark:bg-secondary-dark dark:text-white"
+                    className="px-4 py-2 rounded-lg border dark:border-gray-600 dark:bg-secondary-dark dark:text-white"
                 >
                     <option value="">Select Team</option>
                     {teams.map((team) => (
-                        <option key={team.id} value={team.id}>{team.name}</option>
+                        <option key={team.id} value={team.id}>
+                            {team.name}
+                        </option>
                     ))}
                 </select>
             </div>
 
-            {selectedTeam && (
+            {!selectedTeam ? (
+                <p className="text-center text-gray-500 dark:text-gray-400 py-8">
+                    Please select a team to view statistics.
+                </p>
+            ) : (
                 <div className="space-y-4">
                     <div className="grid grid-cols-2 gap-4">
                         <div className="bg-white dark:bg-secondary/50 rounded-xl p-4 shadow-lg">
