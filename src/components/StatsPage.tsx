@@ -163,29 +163,24 @@ const StatsPage: React.FC<Props> = ({ selectedTeam, players, teams, onTeamSelect
             game.sets.forEach(set => {
                 if (!set.score) return;
 
-                // Process lineup positions and substitutions
+                // Only process players in the starting lineup
                 set.lineup?.forEach(player => {
                     if (allStats[player.name]) {
                         const setId = `${game.id}-set${set.number}`;
                         allStats[player.name].setsPlayed.add(setId);
                         allStats[player.name].gamesPlayed.add(game.id);
                         
-                        allStats[player.name].rotationPositionSum += player.rotationPosition;
-                        allStats[player.name].rotationPositionCount += 1;
-
+                        // Only count wins for starting lineup players
                         if (set.score?.team > set.score?.opponent) {
                             allStats[player.name].gamesWon++;
                         }
                     }
                 });
 
-                // Process substitutions
+                // Only count substitutions for tracking total subs, not for win percentage
                 set.substitutions?.forEach(sub => {
                     if (allStats[sub.inPlayer.name]) {
                         allStats[sub.inPlayer.name].totalSubstitutions += 1;
-                        if (set.score?.team > set.score?.opponent) {
-                            allStats[sub.inPlayer.name].gamesWon++;
-                        }
                     }
                 });
             });
