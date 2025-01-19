@@ -356,21 +356,21 @@ async function updateGameSet(gameId: string, set: Set) {
     let status: 'win' | 'loss' | 'in-progress' = 'in-progress';
     let finalScore = null;
 
-    if (updatedSets.length === 5) {
-      if (sanitizedSet.score) {
-        status = sanitizedSet.score.team > sanitizedSet.score.opponent ? 'win' : 'loss';
-        finalScore = {
-          team: setsWon.team + (sanitizedSet.score.team > sanitizedSet.score.opponent ? 1 : 0),
-          opponent: setsWon.opponent + (sanitizedSet.score.opponent > sanitizedSet.score.team ? 1 : 0)
-        };
-      }
-    } else if (updatedSets.length === 4) {
-      if (setsWon.team === 2 && setsWon.opponent === 2) {
-        status = 'in-progress';
-      } else {
-        status = setsWon.team > setsWon.opponent ? 'win' : 'loss';
-        finalScore = setsWon;
-      }
+    // Update the game status and final score based on sets won
+    if (setsWon.team === 3 || setsWon.opponent === 3) {
+      status = setsWon.team === 3 ? 'win' : 'loss';
+      finalScore = {
+        team: setsWon.team,
+        opponent: setsWon.opponent
+      };
+    } else if (updatedSets.length === 5 && sanitizedSet.score) {
+      // If we're in the fifth set and it has a score
+      const fifthSetWinner = sanitizedSet.score.team > sanitizedSet.score.opponent ? 'team' : 'opponent';
+      status = fifthSetWinner === 'team' ? 'win' : 'loss';
+      finalScore = {
+        team: setsWon.team + (fifthSetWinner === 'team' ? 1 : 0),
+        opponent: setsWon.opponent + (fifthSetWinner === 'opponent' ? 1 : 0)
+      };
     }
 
     // Remove any undefined values from the update data

@@ -82,42 +82,22 @@ export async function getTeamStatistics(teamId: string): Promise<TeamStatistics>
       longestLoseStreak: 0,
     };
     
-    let totalPoints = 0;
-    let currentWinStreak = 0;
-    let currentLoseStreak = 0;
-    
     gamesSnapshot.forEach((doc) => {
       const game = doc.data();
+      if (game.status === 'in-progress') return;
+      
       stats.totalGames++;
-      
-      if (game.status === 'win') {
-        stats.wins++;
-        currentWinStreak++;
-        currentLoseStreak = 0;
-      } else if (game.status === 'loss') {
-        stats.losses++;
-        currentLoseStreak++;
-        currentWinStreak = 0;
-      }
-      
-      stats.longestWinStreak = Math.max(stats.longestWinStreak, currentWinStreak);
-      stats.longestLoseStreak = Math.max(stats.longestLoseStreak, currentLoseStreak);
-      
-      game.sets.forEach((set: any) => {
-        stats.totalSets++;
-        if (set.score) {
-          if (set.score.team > set.score.opponent) {
-            stats.setsWon++;
-          } else {
-            stats.setsLost++;
-          }
-          totalPoints += set.score.team;
+      if (game.finalScore) {
+        if (game.finalScore.team > game.finalScore.opponent) {
+          stats.wins++;
+        } else {
+          stats.losses++;
         }
-      });
+        stats.setsWon += game.finalScore.team;
+        stats.setsLost += game.finalScore.opponent;
+      }
     });
-    
-    stats.averagePointsPerSet = stats.totalSets > 0 ? totalPoints / stats.totalSets : 0;
-    
+
     return stats;
   } catch (e) {
     console.error("Error calculating team statistics: ", e);

@@ -8,6 +8,7 @@ import Login from './components/Login';
 import Training from './components/Training';
 import { Tab } from '@headlessui/react';
 import { collection, query, getDocs, orderBy, where } from 'firebase/firestore';
+import GameDetails from './components/GameDetails';
 
 interface Player {
   id: string;
@@ -125,6 +126,8 @@ function App() {
   const [loading, setLoading] = useState(true);
 
   const [trainingSessions, setTrainingSessions] = useState<any[]>([]);
+
+  const [selectedGameForDetails, setSelectedGameForDetails] = useState<Game | null>(null);
 
   useEffect(() => {
     document.documentElement.classList.add('dark');
@@ -785,16 +788,32 @@ function App() {
                 <div className="flex items-center space-x-2">
                   {game.status !== 'in-progress' ? (
                     <div className="flex flex-col items-end">
-                      {game.status === 'win' ? (
-                        <Check className="w-5 h-5 text-green-500 dark:text-green-400" />
-                      ) : (
-                        <XCircle className="w-5 h-5 text-red-500 dark:text-red-400" />
-                      )}
-                      {game.finalScore && (
-                        <span className="mt-1 text-sm font-medium dark:text-white">
-                          {game.finalScore.team} - {game.finalScore.opponent}
-                        </span>
-                      )}
+                      <span className={`text-lg font-semibold ${
+                        game.status === 'win' 
+                            ? 'text-green-600 dark:text-green-400' 
+                            : game.status === 'loss' 
+                                ? 'text-red-600 dark:text-red-400'
+                                : 'text-gray-600 dark:text-gray-400'
+                      }`}>
+                        {game.sets.reduce((acc, set) => {
+                          if (set.score) {
+                              return {
+                                  team: acc.team + (set.score.team > set.score.opponent ? 1 : 0),
+                                  opponent: acc.opponent + (set.score.opponent > set.score.team ? 1 : 0)
+                              };
+                          }
+                          return acc;
+                      }, { team: 0, opponent: 0 }).team} - {
+                      game.sets.reduce((acc, set) => {
+                        if (set.score) {
+                            return {
+                                team: acc.team + (set.score.team > set.score.opponent ? 1 : 0),
+                                opponent: acc.opponent + (set.score.opponent > set.score.team ? 1 : 0)
+                            };
+                        }
+                        return acc;
+                    }, { team: 0, opponent: 0 }).opponent}
+                      </span>
                     </div>
                   ) : (
                     <CircleDot className="w-5 h-5 text-yellow-500 dark:text-yellow-400" />
@@ -1536,6 +1555,13 @@ function App() {
             </div>
           </div>
         </div>
+      )}
+
+      {selectedGameForDetails && (
+        <GameDetails 
+          game={selectedGameForDetails} 
+          onClose={() => setSelectedGameForDetails(null)} 
+        />
       )}
 
     </div>
