@@ -1271,11 +1271,18 @@ function App() {
                       }}
                     >
                       <option value="">Select Player</option>
-                      {selectedGame && players[selectedGame.teamId]?.map((player) => (
-                        <option key={player.number} value={player.number}>
-                          {player.name} ({player.position})
-                        </option>
-                      ))}
+                      {selectedGame && players[selectedGame.teamId]
+                        ?.filter(player => 
+                          // Only show players that aren't already in the lineup (except for the current position)
+                          !currentLineup.some(p => 
+                            p.number === player.number && p.rotationPosition !== position
+                          )
+                        )
+                        .map((player) => (
+                          <option key={player.number} value={player.number}>
+                            {player.name} ({player.position})
+                          </option>
+                        ))}
                     </select>
                   </div>
                 );
