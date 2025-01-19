@@ -1,8 +1,8 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Player } from '../types/player';
 import { Game, GameSet } from '../types/game';
 import { Team } from '../types/team';
-import { TrendingUp, TrendingDown, HelpCircle } from 'lucide-react';
+import { TrendingUp, TrendingDown, HelpCircle, ChevronUp, ChevronDown } from 'lucide-react';
 
 interface StatsPageProps {
     selectedTeam: string;
@@ -57,6 +57,9 @@ interface Props {
     trainingSessions: any[];
     darkMode: boolean;
 }
+
+type SortField = 'name' | 'totalSets' | 'totalGames' | 'setPercentage' | 'winPercentage' | 'totalSubstitutions';
+type SortDirection = 'asc' | 'desc';
 
 const calculateCurrentStreak = (teamGames: Game[]) => {
     // Sort games by date in descending order (most recent first)
@@ -218,6 +221,18 @@ const StatsPage: React.FC<Props> = ({ selectedTeam, players, teams, onTeamSelect
     // Use memoized stats calculation
     const playerStats = useMemo(() => calculateAllPlayerStats(), [selectedTeam, players, games]);
 
+    const [sortField, setSortField] = useState<SortField>('name');
+    const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
+
+    const handleSort = (field: SortField) => {
+        if (sortField === field) {
+            setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+        } else {
+            setSortField(field);
+            setSortDirection('asc');
+        }
+    };
+
     return (
         <div className="p-4">
             <div className="flex items-center justify-between mb-6">
@@ -325,72 +340,145 @@ const StatsPage: React.FC<Props> = ({ selectedTeam, players, teams, onTeamSelect
                             <table className="w-full">
                                 <thead>
                                     <tr className="text-left text-sm text-gray-500 dark:text-gray-400">
-                                        <th className="pb-2">Player</th>
-                                        <th className="pb-2">Total Played Sets</th>
-                                        <th className="pb-2">Games</th>
-                                        <th className="pb-2">Set %</th>
-                                        <th className="pb-2">Win %</th>
+                                        <th 
+                                            className="pb-2 cursor-pointer hover:text-gray-700 dark:hover:text-gray-200"
+                                            onClick={() => handleSort('name')}
+                                        >
+                                            <div className="flex items-center space-x-1">
+                                                <span>Player</span>
+                                                {sortField === 'name' && (
+                                                    sortDirection === 'asc' ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />
+                                                )}
+                                            </div>
+                                        </th>
+                                        <th 
+                                            className="pb-2 cursor-pointer hover:text-gray-700 dark:hover:text-gray-200"
+                                            onClick={() => handleSort('totalSets')}
+                                        >
+                                            <div className="flex items-center space-x-1">
+                                                <span>Total Played Sets</span>
+                                                {sortField === 'totalSets' && (
+                                                    sortDirection === 'asc' ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />
+                                                )}
+                                            </div>
+                                        </th>
+                                        <th 
+                                            className="pb-2 cursor-pointer hover:text-gray-700 dark:hover:text-gray-200"
+                                            onClick={() => handleSort('totalGames')}
+                                        >
+                                            <div className="flex items-center space-x-1">
+                                                <span>Games</span>
+                                                {sortField === 'totalGames' && (
+                                                    sortDirection === 'asc' ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />
+                                                )}
+                                            </div>
+                                        </th>
+                                        <th 
+                                            className="pb-2 cursor-pointer hover:text-gray-700 dark:hover:text-gray-200"
+                                            onClick={() => handleSort('setPercentage')}
+                                        >
+                                            <div className="flex items-center space-x-1">
+                                                <span>Set %</span>
+                                                {sortField === 'setPercentage' && (
+                                                    sortDirection === 'asc' ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />
+                                                )}
+                                            </div>
+                                        </th>
+                                        <th 
+                                            className="pb-2 cursor-pointer hover:text-gray-700 dark:hover:text-gray-200"
+                                            onClick={() => handleSort('winPercentage')}
+                                        >
+                                            <div className="flex items-center space-x-1">
+                                                <span>Win %</span>
+                                                {sortField === 'winPercentage' && (
+                                                    sortDirection === 'asc' ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />
+                                                )}
+                                            </div>
+                                        </th>
                                         <th className="pb-2">Trend</th>
-                                        <th className="pb-2">Subs</th>
+                                        <th 
+                                            className="pb-2 cursor-pointer hover:text-gray-700 dark:hover:text-gray-200"
+                                            onClick={() => handleSort('totalSubstitutions')}
+                                        >
+                                            <div className="flex items-center space-x-1">
+                                                <span>Subs</span>
+                                                {sortField === 'totalSubstitutions' && (
+                                                    sortDirection === 'asc' ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />
+                                                )}
+                                            </div>
+                                        </th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {players[selectedTeam]?.map((player) => {
-                                        const stats = playerStats[player.name] || {
-                                            totalSets: 0,
-                                            setPercentage: 0,
-                                            totalGames: 0,
-                                            winPercentage: 0,
-                                            totalSubstitutions: 0
-                                        };
-                                        
-                                        // Get the team's overall set win percentage
-                                        const teamSetWinRate = (() => {
-                                            const teamGames = games.filter(game => 
-                                                game.teamId === selectedTeam && 
-                                                game.status !== 'in-progress'
-                                            );
+                                    {players[selectedTeam]
+                                        ?.map((player) => ({
+                                            player,
+                                            stats: playerStats[player.name] || {
+                                                totalSets: 0,
+                                                setPercentage: 0,
+                                                totalGames: 0,
+                                                winPercentage: 0,
+                                                totalSubstitutions: 0
+                                            }
+                                        }))
+                                        .sort((a, b) => {
+                                            if (sortField === 'name') {
+                                                return sortDirection === 'asc' 
+                                                    ? a.player.name.localeCompare(b.player.name)
+                                                    : b.player.name.localeCompare(a.player.name);
+                                            }
+                                            return sortDirection === 'asc'
+                                                ? a.stats[sortField] - b.stats[sortField]
+                                                : b.stats[sortField] - a.stats[sortField];
+                                        })
+                                        .map(({ player, stats }) => {
+                                            // Get the team's overall set win percentage
+                                            const teamSetWinRate = (() => {
+                                                const teamGames = games.filter(game => 
+                                                    game.teamId === selectedTeam && 
+                                                    game.status !== 'in-progress'
+                                                );
+                                                
+                                                const setStats = teamGames.reduce((acc, game) => {
+                                                    const completedSets = game.sets.filter(set => set.score);
+                                                    acc.totalSets += completedSets.length;
+                                                    acc.wonSets += completedSets.filter(set => 
+                                                        (set.score?.team || 0) > (set.score?.opponent || 0)
+                                                    ).length;
+                                                    return acc;
+                                                }, { totalSets: 0, wonSets: 0 });
+
+                                                return setStats.totalSets > 0 
+                                                    ? (setStats.wonSets / setStats.totalSets) * 100
+                                                    : 0;
+                                            })();
+
+                                            // Compare player's win percentage against team's overall set win percentage
+                                            const isUpTrend = stats.winPercentage >= teamSetWinRate;
                                             
-                                            const setStats = teamGames.reduce((acc, game) => {
-                                                const completedSets = game.sets.filter(set => set.score);
-                                                acc.totalSets += completedSets.length;
-                                                acc.wonSets += completedSets.filter(set => 
-                                                    (set.score?.team || 0) > (set.score?.opponent || 0)
-                                                ).length;
-                                                return acc;
-                                            }, { totalSets: 0, wonSets: 0 });
-
-                                            return setStats.totalSets > 0 
-                                                ? (setStats.wonSets / setStats.totalSets) * 100
-                                                : 0;
-                                        })();
-
-                                        // Compare player's win percentage against team's overall set win percentage
-                                        const isUpTrend = stats.winPercentage >= teamSetWinRate;
-                                        
-                                        return (
-                                            <tr key={player.name} className="border-t dark:border-gray-700">
-                                                <td className="py-2">
-                                                    <div>
-                                                        <p className="font-medium dark:text-white">{player.name}</p>
-                                                        <p className="text-sm text-gray-500 dark:text-gray-400">{player.position}</p>
-                                                    </div>
-                                                </td>
-                                                <td className="py-2 dark:text-white">{stats.totalSets}</td>
-                                                <td className="py-2 dark:text-white">{stats.totalGames}</td>
-                                                <td className="py-2 dark:text-white">{stats.setPercentage.toFixed(1)}%</td>
-                                                <td className="py-2 dark:text-white">{stats.winPercentage}%</td>
-                                                <td className="py-2">
-                                                    {isUpTrend ? (
-                                                        <TrendingUp className="w-5 h-5 text-green-500" />
-                                                    ) : (
-                                                        <TrendingDown className="w-5 h-5 text-red-500" />
-                                                    )}
-                                                </td>
-                                                <td className="py-2 dark:text-white">{stats.totalSubstitutions}</td>
-                                            </tr>
-                                        );
-                                    })}
+                                            return (
+                                                <tr key={player.name} className="border-t dark:border-gray-700">
+                                                    <td className="py-2">
+                                                        <div>
+                                                            <p className="font-medium dark:text-white">{player.name}</p>
+                                                            <p className="text-sm text-gray-500 dark:text-gray-400">{player.position}</p>
+                                                        </div>
+                                                    </td>
+                                                    <td className="py-2 dark:text-white">{stats.totalSets}</td>
+                                                    <td className="py-2 dark:text-white">{stats.totalGames}</td>
+                                                    <td className="py-2 dark:text-white">{stats.setPercentage.toFixed(1)}%</td>
+                                                    <td className="py-2 dark:text-white">{stats.winPercentage}%</td>
+                                                    <td className="py-2">
+                                                        {isUpTrend ? (
+                                                            <TrendingUp className="w-5 h-5 text-green-500" />
+                                                        ) : (
+                                                            <TrendingDown className="w-5 h-5 text-red-500" />
+                                                        )}
+                                                    </td>
+                                                    <td className="py-2 dark:text-white">{stats.totalSubstitutions}</td>
+                                                </tr>
+                                            );
+                                        })}
                                 </tbody>
                             </table>
                         </div>
