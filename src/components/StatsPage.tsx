@@ -264,20 +264,49 @@ const StatsPage: React.FC<Props> = ({ selectedTeam, players, teams, onTeamSelect
                     </div>
 
                     <div className="bg-white dark:bg-secondary/50 rounded-xl p-4 shadow-lg">
-                        <h3 className="text-sm text-gray-600 dark:text-gray-400">Current Streak</h3>
-                        {(() => {
-                            const streak = calculateCurrentStreak(
-                                games.filter(game => game.teamId === selectedTeam)
-                            );
-                            if (streak.type === 'none') {
-                                return <p className="text-2xl font-bold text-primary">No games played</p>;
-                            }
-                            return (
+                        <div className="flex justify-between items-center">
+                            <div>
+                                <h3 className="text-sm text-gray-600 dark:text-gray-400">Current Streak</h3>
+                                {(() => {
+                                    const streak = calculateCurrentStreak(
+                                        games.filter(game => game.teamId === selectedTeam)
+                                    );
+                                    if (streak.type === 'none') {
+                                        return <p className="text-2xl font-bold text-primary">No games played</p>;
+                                    }
+                                    return (
+                                        <p className="text-2xl font-bold text-primary">
+                                            {streak.count} {streak.type === 'win' ? 'Wins' : 'Losses'}
+                                        </p>
+                                    );
+                                })()}
+                            </div>
+                            <div className="text-right">
+                                <h3 className="text-sm text-gray-600 dark:text-gray-400">Team Average Win %</h3>
                                 <p className="text-2xl font-bold text-primary">
-                                    {streak.count} {streak.type === 'win' ? 'Wins' : 'Losses'}
+                                    {(() => {
+                                        const teamGames = games.filter(game => 
+                                            game.teamId === selectedTeam && 
+                                            game.status !== 'in-progress'
+                                        );
+                                        
+                                        // Calculate total sets and won sets
+                                        const setStats = teamGames.reduce((acc, game) => {
+                                            const completedSets = game.sets.filter(set => set.score);
+                                            acc.totalSets += completedSets.length;
+                                            acc.wonSets += completedSets.filter(set => 
+                                                (set.score?.team || 0) > (set.score?.opponent || 0)
+                                            ).length;
+                                            return acc;
+                                        }, { totalSets: 0, wonSets: 0 });
+
+                                        return setStats.totalSets > 0 
+                                            ? ((setStats.wonSets / setStats.totalSets) * 100).toFixed(1) + '%'
+                                            : '0%';
+                                    })()}
                                 </p>
-                            );
-                        })()}
+                            </div>
+                        </div>
                     </div>
 
                     <div className="bg-white dark:bg-secondary/50 rounded-xl p-4 shadow-lg">
