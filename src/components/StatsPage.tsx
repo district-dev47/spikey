@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { Player } from '../types/player';
 import { Game, GameSet } from '../types/game';
 import { Team } from '../types/team';
+import { TrendingUp, TrendingDown, HelpCircle } from 'lucide-react';
 
 interface StatsPageProps {
     selectedTeam: string;
@@ -280,7 +281,22 @@ const StatsPage: React.FC<Props> = ({ selectedTeam, players, teams, onTeamSelect
                     </div>
 
                     <div className="bg-white dark:bg-secondary/50 rounded-xl p-4 shadow-lg">
-                        <h3 className="text-lg font-semibold mb-4 dark:text-white">Player Statistics</h3>
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-lg font-semibold dark:text-white">Player Statistics</h3>
+                            <div className="relative group">
+                                <HelpCircle className="w-5 h-5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-help" />
+                                <div className="absolute right-0 w-72 p-4 bg-white dark:bg-secondary-dark rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-10 text-sm">
+                                    <ul className="space-y-2 text-gray-600 dark:text-gray-300">
+                                        <li><strong>Total Played Sets:</strong> Number of sets the player has participated in</li>
+                                        <li><strong>Games:</strong> Total number of games played</li>
+                                        <li><strong>Set %:</strong> Percentage of total sets played in their games</li>
+                                        <li><strong>Win %:</strong> Percentage of sets won when playing</li>
+                                        <li><strong>Trend:</strong> Performance compared to team average</li>
+                                        <li><strong>Subs:</strong> Number of times substituted in</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
                         <div className="overflow-x-auto">
                             <table className="w-full">
                                 <thead>
@@ -290,7 +306,7 @@ const StatsPage: React.FC<Props> = ({ selectedTeam, players, teams, onTeamSelect
                                         <th className="pb-2">Games</th>
                                         <th className="pb-2">Set %</th>
                                         <th className="pb-2">Win %</th>
-                                        <th className="pb-2">Avg Pos</th>
+                                        <th className="pb-2">Trend</th>
                                         <th className="pb-2">Subs</th>
                                     </tr>
                                 </thead>
@@ -301,9 +317,16 @@ const StatsPage: React.FC<Props> = ({ selectedTeam, players, teams, onTeamSelect
                                             setPercentage: 0,
                                             totalGames: 0,
                                             winPercentage: 0,
-                                            averageRotationPosition: 0,
                                             totalSubstitutions: 0
                                         };
+                                        
+                                        // Calculate if trend is up or down based on team average
+                                        const teamAverageWinRate = players[selectedTeam].reduce((acc, p) => {
+                                            const playerStat = playerStats[p.name] || { winPercentage: 0 };
+                                            return acc + playerStat.winPercentage;
+                                        }, 0) / players[selectedTeam].length;
+
+                                        const isUpTrend = stats.winPercentage >= teamAverageWinRate;
                                         
                                         return (
                                             <tr key={player.name} className="border-t dark:border-gray-700">
@@ -317,7 +340,13 @@ const StatsPage: React.FC<Props> = ({ selectedTeam, players, teams, onTeamSelect
                                                 <td className="py-2 dark:text-white">{stats.totalGames}</td>
                                                 <td className="py-2 dark:text-white">{stats.setPercentage.toFixed(1)}%</td>
                                                 <td className="py-2 dark:text-white">{stats.winPercentage}%</td>
-                                                <td className="py-2 dark:text-white">{stats.averageRotationPosition.toFixed(1)}</td>
+                                                <td className="py-2">
+                                                    {isUpTrend ? (
+                                                        <TrendingUp className="w-5 h-5 text-green-500" />
+                                                    ) : (
+                                                        <TrendingDown className="w-5 h-5 text-red-500" />
+                                                    )}
+                                                </td>
                                                 <td className="py-2 dark:text-white">{stats.totalSubstitutions}</td>
                                             </tr>
                                         );
