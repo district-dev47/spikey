@@ -356,21 +356,45 @@ async function updateGameSet(gameId: string, set: Set) {
     let status: 'win' | 'loss' | 'in-progress' = 'in-progress';
     let finalScore = null;
 
-    // Update the game status and final score based on sets won
-    if (setsWon.team === 3 || setsWon.opponent === 3) {
-      status = setsWon.team === 3 ? 'win' : 'loss';
-      finalScore = {
-        team: setsWon.team,
-        opponent: setsWon.opponent
-      };
-    } else if (updatedSets.length === 5 && sanitizedSet.score) {
-      // If we're in the fifth set and it has a score
-      const fifthSetWinner = sanitizedSet.score.team > sanitizedSet.score.opponent ? 'team' : 'opponent';
-      status = fifthSetWinner === 'team' ? 'win' : 'loss';
-      finalScore = {
-        team: setsWon.team + (fifthSetWinner === 'team' ? 1 : 0),
-        opponent: setsWon.opponent + (fifthSetWinner === 'opponent' ? 1 : 0)
-      };
+    // A game must have at least 4 sets played before determining win/loss
+    if (updatedSets.length >= 4) {
+      if (setsWon.team === 3 && setsWon.opponent === 1) {
+        // Win with 3-1
+        status = 'win';
+        finalScore = {
+          team: 3,
+          opponent: 1
+        };
+      } else if (setsWon.team === 4 && setsWon.opponent === 0) {
+        // Win with 4-0
+        status = 'win';
+        finalScore = {
+          team: 4,
+          opponent: 0
+        };
+      } else if (setsWon.opponent === 3 && setsWon.team === 1) {
+        // Loss with 1-3
+        status = 'loss';
+        finalScore = {
+          team: 1,
+          opponent: 3
+        };
+      } else if (setsWon.opponent === 4 && setsWon.team === 0) {
+        // Loss with 0-4
+        status = 'loss';
+        finalScore = {
+          team: 0,
+          opponent: 4
+        };
+      } else if (updatedSets.length === 5 && sanitizedSet.score) {
+        // Fifth set is played (was 2-2 after 4 sets)
+        const fifthSetWinner = sanitizedSet.score.team > sanitizedSet.score.opponent ? 'team' : 'opponent';
+        status = fifthSetWinner === 'team' ? 'win' : 'loss';
+        finalScore = {
+          team: setsWon.team + (fifthSetWinner === 'team' ? 1 : 0),
+          opponent: setsWon.opponent + (fifthSetWinner === 'opponent' ? 1 : 0)
+        };
+      }
     }
 
     // Remove any undefined values from the update data

@@ -921,11 +921,11 @@ function App() {
                   {game.status === 'in-progress' && (
                     (game.sets.length < 4 || (game.sets.length === 4 && 
                       game.sets.reduce((acc, set) => 
-                        set.score?.team !== undefined && set.score?.opponent !== undefined && 
-                        set.score.team > set.score.opponent ? acc + 1 : acc, 0) === 2 && 
+                        set.score?.team > set.score?.opponent ? acc + 1 : acc, 0) === 2 && 
                         game.sets.reduce((acc, set) => 
                           set.score?.team !== undefined && set.score?.opponent !== undefined && 
-                          set.score.opponent > set.score.team ? acc + 1 : acc, 0) === 2)) && (
+                          set.score.opponent > set.score.team ? acc + 1 : acc, 0) === 2
+                    )) && (
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
