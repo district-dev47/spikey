@@ -268,7 +268,7 @@ const StatsPage: React.FC<Props> = ({ selectedTeam, players, teams, onTeamSelect
                             <h3 className="text-sm text-gray-600 dark:text-gray-400">Win Rate</h3>
                             <p className="text-2xl font-bold text-primary">
                                 {((games.filter(game => game.teamId === selectedTeam && game.status === 'win').length / 
-                                    games.filter(game => game.teamId === selectedTeam && game.status !== 'in-progress').length) * 100 || 0).toFixed(1)}%
+                                    games.filter(game => game.teamId === selectedTeam && game.status !== 'in-progress').length) * 100 || 0).toFixed(0)}%
                             </p>
                         </div>
                     </div>
@@ -466,7 +466,7 @@ const StatsPage: React.FC<Props> = ({ selectedTeam, players, teams, onTeamSelect
                                                     </td>
                                                     <td className="py-2 dark:text-white">{stats.totalSets}</td>
                                                     <td className="py-2 dark:text-white">{stats.totalGames}</td>
-                                                    <td className="py-2 dark:text-white">{stats.setPercentage.toFixed(1)}%</td>
+                                                    <td className="py-2 dark:text-white">{stats.setPercentage.toFixed(0)}%</td>
                                                     <td className="py-2 dark:text-white">{stats.winPercentage}%</td>
                                                     <td className="py-2">
                                                         {isUpTrend ? (
