@@ -87,7 +87,7 @@ const PlayerStats: React.FC<PlayerStatsProps> = ({
                     {stats.lastTenSessions.map((present, idx) => (
                         <div 
                             key={idx}
-                            className={`w-3 h-3 rounded-full ${present ? 'bg-green-500' : 'bg-red-500'}`}
+                            className={`w-2 h-2 rounded-full ${present ? 'bg-green-500' : 'bg-red-500'}`}
                         />
                     ))}
                 </div>
