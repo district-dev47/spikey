@@ -9,6 +9,7 @@ interface PlayerStatsProps {
     attendanceMap: { [key: string]: { [key: string]: boolean } };
     teamAverageRate: number;
     trend: 'up' | 'down';
+    longestStreak: number;
 }
 
 interface PlayerDetailedStats {
@@ -25,92 +26,70 @@ const PlayerStats: React.FC<PlayerStatsProps> = ({
     sessions, 
     attendanceMap,
     teamAverageRate,
-    trend 
+    trend,
+    longestStreak
 }) => {
-    const calculateDetailedStats = (): PlayerDetailedStats => {
+    const calculateDetailedStats = () => {
         const presentCount = sessions.reduce((count, session) => {
             return attendanceMap[session.id]?.[player.id] === true ? count + 1 : count;
         }, 0);
 
-        // Calculate last 10 sessions attendance
+        const attendanceRate = (presentCount / sessions.length) * 100;
+
+        // Get last 10 sessions attendance
         const lastTenSessions = sessions
             .slice(0, 10)
             .map(session => attendanceMap[session.id]?.[player.id] ?? false);
 
-        // Calculate current streak
-        let streak = 0;
-        for (const session of sessions) {
-            if (attendanceMap[session.id]?.[player.id]) {
-                streak++;
-            } else {
-                break;
-            }
-        }
-
-        // Calculate trend based on last 10 sessions split into two groups of 5
-        const recentAttendance = sessions.slice(0, 5).filter(s => attendanceMap[s.id]?.[player.id]).length;
-        const previousAttendance = sessions.slice(5, 10).filter(s => attendanceMap[s.id]?.[player.id]).length;
-        const trend = recentAttendance > previousAttendance ? 'up' : recentAttendance < previousAttendance ? 'down' : 'stable';
-
         return {
-            attendanceRate: (presentCount / sessions.length) * 100,
-            totalSessions: sessions.length,
+            attendanceRate,
             presentCount,
-            streak,
+            totalSessions: sessions.length,
             lastTenSessions,
-            trend
         };
     };
 
     const stats = calculateDetailedStats();
 
     return (
-        <div className="bg-white dark:bg-secondary/50 rounded-xl p-4 shadow-sm">
-            <div className="flex items-center justify-between mb-4">
+        <div className="bg-white dark:bg-secondary/50 rounded-lg p-3 shadow-sm mb-2">
+            <div className="flex justify-between items-center mb-2">
                 <div>
-                    <h3 className="text-lg font-semibold dark:text-white">{player.name}</h3>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">#{player.number} • {player.position}</p>
+                    <h3 className="text-md font-semibold dark:text-white">{player.name}</h3>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">#{player.number} • {player.position}</p>
                 </div>
                 <div className="text-right">
-                    <p className="text-2xl font-bold text-primary">
-                        {stats.attendanceRate.toFixed(1)}%
-                    </p>
+                    <p className="text-lg font-bold text-primary">{stats.attendanceRate.toFixed(1)}%</p>
                     <div className="flex items-center justify-end space-x-1">
                         {trend === 'up' ? (
                             <TrendingUp className="w-4 h-4 text-green-500" />
                         ) : (
                             <TrendingDown className="w-4 h-4 text-red-500" />
                         )}
-                        <span className="text-sm text-gray-500">
-                            vs team avg {teamAverageRate.toFixed(1)}%
-                        </span>
+                        <span className="text-xs text-gray-500">vs avg {teamAverageRate.toFixed(1)}%</span>
                     </div>
                 </div>
             </div>
 
-            <div className="grid grid-cols-3 gap-4 mb-4">
+            <div className="flex justify-between text-sm text-gray-500 dark:text-gray-400 mb-1">
                 <div>
-                    <p className="text-sm text-gray-500">Present</p>
-                    <p className="text-lg font-semibold dark:text-white">
-                        {stats.presentCount}/{stats.totalSessions}
-                    </p>
+                    Present: <span className="font-semibold">{stats.presentCount}/{stats.totalSessions}</span>
                 </div>
                 <div>
-                    <p className="text-sm text-gray-500">Current Streak</p>
-                    <p className="text-lg font-semibold dark:text-white">{stats.streak}</p>
+                    Longest Streak: <span className="font-semibold text-primary">{longestStreak}</span>
                 </div>
-                <div>
-                    <p className="text-sm text-gray-500">Last 10</p>
-                    <div className="flex flex-wrap gap-1">
-                        {stats.lastTenSessions.map((present, idx) => (
-                            <div 
-                                key={idx}
-                                className={`w-2 h-2 rounded-full ${
-                                    present ? 'bg-green-500' : 'bg-red-500'
-                                }`}
-                            />
-                        ))}
-                    </div>
+            </div>
+
+            {/* Last 10 Attendance Dots */}
+            <div className="flex items-center">
+                <p className="text-sm text-gray-500 dark:text-gray-400 mr-2">Last 10:</p>
+                <div className="flex space-x-1">
+                    {stats.lastTenSessions.map((present, idx) => (
+                        <div 
+                            key={idx}
+                            className={`w-3 h-3 rounded-full ${present ? 'bg-green-500' : 'bg-red-500'}`}
+                        />
+                    ))}
                 </div>
             </div>
         </div>

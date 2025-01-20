@@ -50,6 +50,28 @@ const getReasonIcon = (reason?: AbsenceReason) => {
     }
 };
 
+// Add this helper function to calculate streaks
+const calculateStreaks = (sessions: TrainingSession[], playerId: string, attendanceMap: { [key: string]: { [key: string]: boolean } }) => {
+    let currentStreak = 0;
+    let longestStreak = 0;
+    
+    // Sort sessions by date ascending
+    const sortedSessions = sessions.slice().sort((a, b) => a.date.getTime() - b.date.getTime());
+    
+    sortedSessions.forEach(session => {
+        if (attendanceMap[session.id]?.[playerId] === true) {
+            currentStreak++;
+            if (currentStreak > longestStreak) {
+                longestStreak = currentStreak;
+            }
+        } else {
+            currentStreak = 0;
+        }
+    });
+    
+    return longestStreak;
+};
+
 const Training: React.FC<TrainingProps> = ({ teamId, userId, players, teams, onTeamSelect }) => {
     console.log('Training component mounted/updated:', { teamId, userId, players, teams });
 
@@ -416,6 +438,9 @@ const Training: React.FC<TrainingProps> = ({ teamId, userId, players, teams, onT
             
             const attendanceRate = (playerAttendance / validSessions.length) * 100;
             
+            // Calculate longest streak
+            const longestStreak = calculateStreaks(validSessions, player.id, attendanceMap);
+            
             // Compare with team average to determine trend
             let trend: 'up' | 'down' = 'up';
             if (attendanceRate < teamAttendanceRate) {
@@ -425,7 +450,8 @@ const Training: React.FC<TrainingProps> = ({ teamId, userId, players, teams, onT
             return {
                 ...player,
                 attendanceRate,
-                trend
+                trend,
+                longestStreak // Include longest streak
             };
         });
 
@@ -768,6 +794,7 @@ const Training: React.FC<TrainingProps> = ({ teamId, userId, players, teams, onT
                                                             attendanceMap={attendanceMap}
                                                             teamAverageRate={stats.teamRate}
                                                             trend={playerStat.trend}
+                                                            longestStreak={playerStat.longestStreak}
                                                         />
                                                     );
                                                 })}
