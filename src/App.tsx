@@ -129,6 +129,9 @@ function App() {
 
   const [selectedGameForDetails, setSelectedGameForDetails] = useState<Game | null>(null);
 
+  // Add a new state variable for selected team in games
+  const [selectedTeamForGames, setSelectedTeamForGames] = useState<string | null>(null);
+
   useEffect(() => {
     document.documentElement.classList.add('dark');
 
@@ -758,6 +761,18 @@ function App() {
     <div className="p-4">
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-lg font-semibold dark:text-white">Games</h2>
+        <select
+          value={selectedTeamForGames || ''}
+          onChange={(e) => setSelectedTeamForGames(e.target.value)}
+          className="w-1/3 border border-gray-300 rounded-lg px-3 py-1.5 dark:bg-secondary-dark dark:text-white"
+        >
+          <option value="">All Teams</option>
+          {teams.map((team) => (
+            <option key={team.id} value={team.id}>
+              {team.name}
+            </option>
+          ))}
+        </select>
         <button
           onClick={() => setShowNewGameModal(true)}
           className="flex items-center space-x-1 border border-primary text-primary px-3 py-1.5 rounded-lg hover:bg-primary/10 transition-colors"
@@ -768,32 +783,44 @@ function App() {
       </div>
 
       <div className="space-y-4">
-        {games.map((game) => {
-          const team = teams.find(t => t.id === game.teamId);
-          const isSelected = selectedGame?.id === game.id;
-          
-          return (
-            <div 
-              key={game.id} 
-              className="bg-white dark:bg-secondary/50 rounded-xl p-4 shadow-md hover:shadow-lg transition-shadow cursor-pointer"
-              onClick={() => setSelectedGame(isSelected ? null : game)}
-            >
-              <div className="flex justify-between items-start">
-                <div>
-                  <h3 className="font-medium dark:text-white">{team?.name} vs {game.opponent}</h3>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">{game.date}</p>
-                </div>
-                <div className="flex items-center space-x-2">
-                  {game.status !== 'in-progress' ? (
-                    <div className="flex flex-col items-end">
-                      <span className={`text-lg font-semibold ${
-                        game.status === 'win' 
-                            ? 'text-green-600 dark:text-green-400' 
-                            : game.status === 'loss' 
-                                ? 'text-red-600 dark:text-red-400'
-                                : 'text-gray-600 dark:text-gray-400'
-                      }`}>
-                        {game.sets.reduce((acc, set) => {
+        {games
+          .filter(game => !selectedTeamForGames || game.teamId === selectedTeamForGames) // Filter by selected team
+          .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()) // Sort by date descending
+          .map((game) => {
+            const team = teams.find(t => t.id === game.teamId);
+            const isSelected = selectedGame?.id === game.id;
+            
+            return (
+              <div 
+                key={game.id} 
+                className="bg-white dark:bg-secondary/50 rounded-xl p-4 shadow-md hover:shadow-lg transition-shadow cursor-pointer"
+                onClick={() => setSelectedGame(isSelected ? null : game)}
+              >
+                <div className="flex justify-between items-start">
+                  <div>
+                    <h3 className="font-medium dark:text-white">{team?.name} vs {game.opponent}</h3>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">{game.date}</p>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    {game.status !== 'in-progress' ? (
+                      <div className="flex flex-col items-end">
+                        <span className={`text-lg font-semibold ${
+                          game.status === 'win' 
+                              ? 'text-green-600 dark:text-green-400' 
+                              : game.status === 'loss' 
+                                  ? 'text-red-600 dark:text-red-400'
+                                  : 'text-gray-600 dark:text-gray-400'
+                        }`}>
+                          {game.sets.reduce((acc, set) => {
+                            if (set.score) {
+                                return {
+                                    team: acc.team + (set.score.team > set.score.opponent ? 1 : 0),
+                                    opponent: acc.opponent + (set.score.opponent > set.score.team ? 1 : 0)
+                                };
+                            }
+                            return acc;
+                        }, { team: 0, opponent: 0 }).team} - {
+                        game.sets.reduce((acc, set) => {
                           if (set.score) {
                               return {
                                   team: acc.team + (set.score.team > set.score.opponent ? 1 : 0),
@@ -801,150 +828,141 @@ function App() {
                               };
                           }
                           return acc;
-                      }, { team: 0, opponent: 0 }).team} - {
-                      game.sets.reduce((acc, set) => {
-                        if (set.score) {
-                            return {
-                                team: acc.team + (set.score.team > set.score.opponent ? 1 : 0),
-                                opponent: acc.opponent + (set.score.opponent > set.score.team ? 1 : 0)
-                            };
-                        }
-                        return acc;
-                    }, { team: 0, opponent: 0 }).opponent}
-                      </span>
-                    </div>
-                  ) : (
-                    <CircleDot className="w-5 h-5 text-yellow-500 dark:text-yellow-400" />
-                  )}
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDeleteGame(game.id, game.opponent);
-                    }}
-                    className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-full"
-                  >
-                    <X className="w-5 h-5" />
-                  </button>
+                      }, { team: 0, opponent: 0 }).opponent}
+                        </span>
+                      </div>
+                    ) : (
+                      <CircleDot className="w-5 h-5 text-yellow-500 dark:text-yellow-400" />
+                    )}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteGame(game.id, game.opponent);
+                      }}
+                      className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-full"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
                 </div>
-              </div>
 
-              {/* Set Details - Only show when game is selected */}
-              {isSelected && (
-                <div className="mt-4 space-y-2">
-                  <div className="h-px bg-gray-200 dark:bg-gray-700 my-3"></div>
-                  <h4 className="text-sm font-medium dark:text-white mb-2">Set Details</h4>
-                  {game.sets.map((set, index) => (
-                    <div key={index} className="flex items-center justify-between p-2 bg-gray-50 dark:bg-secondary-dark rounded-lg">
-                      <span className="text-sm font-medium dark:text-white">
-                        Set {set.number}{set.number === 5 ? ' (Tie Break)' : ''}
-                      </span>
-                      <div className="flex items-center space-x-3">
-                        {set.score ? (
-                          <span className={`font-semibold ${
-                            set.score.team > set.score.opponent 
-                              ? 'text-green-600 dark:text-green-400'
-                              : 'text-red-600 dark:text-red-400'
-                          }`}>
-                            {set.score.team} - {set.score.opponent}
-                          </span>
-                        ) : (
-                          <div className="flex items-center space-x-2">
+                {/* Set Details - Only show when game is selected */}
+                {isSelected && (
+                  <div className="mt-4 space-y-2">
+                    <div className="h-px bg-gray-200 dark:bg-gray-700 my-3"></div>
+                    <h4 className="text-sm font-medium dark:text-white mb-2">Set Details</h4>
+                    {game.sets.map((set, index) => (
+                      <div key={index} className="flex items-center justify-between p-2 bg-gray-50 dark:bg-secondary-dark rounded-lg">
+                        <span className="text-sm font-medium dark:text-white">
+                          Set {set.number}{set.number === 5 ? ' (Tie Break)' : ''}
+                        </span>
+                        <div className="flex items-center space-x-3">
+                          {set.score ? (
+                            <span className={`font-semibold ${
+                              set.score.team > set.score.opponent 
+                                ? 'text-green-600 dark:text-green-400'
+                                : 'text-red-600 dark:text-red-400'
+                            }`}>
+                              {set.score.team} - {set.score.opponent}
+                            </span>
+                          ) : (
+                            <div className="flex items-center space-x-2">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedGame(game);
+                                  setCurrentSetNumber(set.number);
+                                  // Initialize currentLineup with the existing lineup from this set
+                                  if (set.lineup && set.lineup.length > 0) {
+                                    setCurrentLineup([...set.lineup]);
+                                  } else {
+                                    setCurrentLineup([]);
+                                  }
+                                  setShowLineupModal(true);
+                                }}
+                                className="text-primary text-sm hover:underline"
+                              >
+                                Edit Lineup
+                              </button>
+                              <span className="text-gray-400">|</span>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedGame(game);
+                                  setCurrentSetNumber(set.number);
+                                  setShowSetScoreModal(true);
+                                }}
+                                className="text-primary text-sm hover:underline"
+                              >
+                                Enter Score
+                              </button>
+                            </div>
+                          )}
+                          <div className="flex items-center space-x-1">
+                            <span className="text-xs text-gray-500 dark:text-gray-400">
+                              {(set.substitutions?.length || 0)}/6
+                            </span>
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
                                 setSelectedGame(game);
-                                setCurrentSetNumber(set.number);
-                                // Initialize currentLineup with the existing lineup from this set
-                                if (set.lineup && set.lineup.length > 0) {
-                                  setCurrentLineup([...set.lineup]);
-                                } else {
-                                  setCurrentLineup([]);
-                                }
-                                setShowLineupModal(true);
+                                setSelectedSet(set);
+                                setShowSubstitutionModal(true);
                               }}
-                              className="text-primary text-sm hover:underline"
+                              className="p-1.5 text-primary hover:bg-primary/10 rounded-full"
+                              title="Make Substitution"
+                              disabled={(set.substitutions?.length || 0) >= 6 || set.score !== undefined}
                             >
-                              Edit Lineup
+                              <ArrowLeftRight className="w-4 h-4" />
                             </button>
-                            <span className="text-gray-400">|</span>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setSelectedGame(game);
-                                setCurrentSetNumber(set.number);
-                                setShowSetScoreModal(true);
-                              }}
-                              className="text-primary text-sm hover:underline"
-                            >
-                              Enter Score
-                            </button>
+                            {set.lineup && set.lineup.length > 0 && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  alert(
+                                    `Starting Lineup:\n\n${set.lineup
+                                      .sort((a, b) => a.rotationPosition - b.rotationPosition)
+                                      .map(player => `Position ${player.rotationPosition}: ${player.name} (${player.number})`)
+                                      .join('\n')}`
+                                  );
+                                }}
+                                className="p-1.5 text-primary hover:bg-primary/10 rounded-full"
+                                title="View Lineup"
+                              >
+                                <Users className="w-4 h-4" />
+                              </button>
+                            )}
                           </div>
-                        )}
-                        <div className="flex items-center space-x-1">
-                          <span className="text-xs text-gray-500 dark:text-gray-400">
-                            {(set.substitutions?.length || 0)}/6
-                          </span>
+                        </div>
+                      </div>
+                    ))}
+                    {game.status === 'in-progress' && (
+                      (game.sets.length < 4 || (game.sets.length === 4 && 
+                        game.sets.reduce((acc, set) => 
+                          set.score?.team > set.score?.opponent ? acc + 1 : acc, 0) === 2 && 
+                          game.sets.reduce((acc, set) => 
+                            set.score?.team !== undefined && set.score?.opponent !== undefined && 
+                            set.score.opponent > set.score.team ? acc + 1 : acc, 0) === 2
+                      )) && (
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
                               setSelectedGame(game);
-                              setSelectedSet(set);
-                              setShowSubstitutionModal(true);
+                              setCurrentSetNumber(game.sets.length + 1);
+                              setCurrentLineup([]);
+                              setShowLineupModal(true);
                             }}
-                            className="p-1.5 text-primary hover:bg-primary/10 rounded-full"
-                            title="Make Substitution"
-                            disabled={(set.substitutions?.length || 0) >= 6 || set.score !== undefined}
+                            className="w-full p-2 text-center text-primary text-sm border border-primary/30 rounded-lg mt-2"
                           >
-                            <ArrowLeftRight className="w-4 h-4" />
+                            {game.sets.length === 4 ? 'Set 5 (Tie Break) Lineup' : `Set ${game.sets.length + 1} Lineup`}
                           </button>
-                          {set.lineup && set.lineup.length > 0 && (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                alert(
-                                  `Starting Lineup:\n\n${set.lineup
-                                    .sort((a, b) => a.rotationPosition - b.rotationPosition)
-                                    .map(player => `Position ${player.rotationPosition}: ${player.name} (${player.number})`)
-                                    .join('\n')}`
-                                );
-                              }}
-                              className="p-1.5 text-primary hover:bg-primary/10 rounded-full"
-                              title="View Lineup"
-                            >
-                              <Users className="w-4 h-4" />
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                  {game.status === 'in-progress' && (
-                    (game.sets.length < 4 || (game.sets.length === 4 && 
-                      game.sets.reduce((acc, set) => 
-                        set.score?.team > set.score?.opponent ? acc + 1 : acc, 0) === 2 && 
-                        game.sets.reduce((acc, set) => 
-                          set.score?.team !== undefined && set.score?.opponent !== undefined && 
-                          set.score.opponent > set.score.team ? acc + 1 : acc, 0) === 2
-                    )) && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedGame(game);
-                            setCurrentSetNumber(game.sets.length + 1);
-                            setCurrentLineup([]);
-                            setShowLineupModal(true);
-                          }}
-                          className="w-full p-2 text-center text-primary text-sm border border-primary/30 rounded-lg mt-2"
-                        >
-                          {game.sets.length === 4 ? 'Set 5 (Tie Break) Lineup' : `Set ${game.sets.length + 1} Lineup`}
-                        </button>
-                      )
-                  )}
-                </div>
-              )}
-            </div>
-          );
-        })}
+                        )
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
       </div>
     </div>
   );
