@@ -233,6 +233,8 @@ const StatsPage: React.FC<Props> = ({ selectedTeam, players, teams, onTeamSelect
         }
     };
 
+    const isMobile = window.innerWidth < 420; // Check if screen size is smaller than 420px
+
     return (
         <div className="p-4">
             <div className="flex items-center justify-between mb-6">
@@ -356,7 +358,7 @@ const StatsPage: React.FC<Props> = ({ selectedTeam, players, teams, onTeamSelect
                                             onClick={() => handleSort('totalSets')}
                                         >
                                             <div className="flex items-center space-x-1">
-                                                <span>Total Played Sets</span>
+                                                <span>{isMobile ? 'TPS' : 'Total Played Sets'}</span>
                                                 {sortField === 'totalSets' && (
                                                     sortDirection === 'asc' ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />
                                                 )}
@@ -367,7 +369,7 @@ const StatsPage: React.FC<Props> = ({ selectedTeam, players, teams, onTeamSelect
                                             onClick={() => handleSort('totalGames')}
                                         >
                                             <div className="flex items-center space-x-1">
-                                                <span>Games</span>
+                                                <span>{isMobile ? 'G' : 'Games'}</span>
                                                 {sortField === 'totalGames' && (
                                                     sortDirection === 'asc' ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />
                                                 )}
@@ -378,7 +380,7 @@ const StatsPage: React.FC<Props> = ({ selectedTeam, players, teams, onTeamSelect
                                             onClick={() => handleSort('setPercentage')}
                                         >
                                             <div className="flex items-center space-x-1">
-                                                <span>Set %</span>
+                                                <span>{isMobile ? 'S%' : 'Set %'}</span>
                                                 {sortField === 'setPercentage' && (
                                                     sortDirection === 'asc' ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />
                                                 )}
@@ -389,19 +391,19 @@ const StatsPage: React.FC<Props> = ({ selectedTeam, players, teams, onTeamSelect
                                             onClick={() => handleSort('winPercentage')}
                                         >
                                             <div className="flex items-center space-x-1">
-                                                <span>Win %</span>
+                                                <span>{isMobile ? 'W%' : 'Win %'}</span>
                                                 {sortField === 'winPercentage' && (
                                                     sortDirection === 'asc' ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />
                                                 )}
                                             </div>
                                         </th>
-                                        <th className="pb-2">Trend</th>
+                                        <th className="pb-2">{isMobile ? 'T' : 'Trend'}</th>
                                         <th 
                                             className="pb-2 cursor-pointer hover:text-gray-700 dark:hover:text-gray-200"
                                             onClick={() => handleSort('totalSubstitutions')}
                                         >
                                             <div className="flex items-center space-x-1">
-                                                <span>Subs</span>
+                                                <span>{isMobile ? 'S' : 'Subs'}</span>
                                                 {sortField === 'totalSubstitutions' && (
                                                     sortDirection === 'asc' ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />
                                                 )}
