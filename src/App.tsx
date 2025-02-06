@@ -153,7 +153,7 @@ function App() {
 
   useEffect(() => {
     const fetchTeams = async () => {
-      if (!user) return; // Don't fetch if no user is logged in
+      if (!user) return;
       
       try {
         const fetchedTeams = await getAllTeams(user.uid);
@@ -170,9 +170,12 @@ function App() {
         // Fetch players for each team
         const playersObj: Record<string, Player[]> = {};
         for (const team of updatedTeams) {
+          console.log('Fetching players for team:', team.id);
           const teamPlayers = await getTeamPlayers(team.id);
+          console.log('Received players:', teamPlayers);
           playersObj[team.id] = teamPlayers;
         }
+        console.log('Setting players state:', playersObj);
         setPlayers(playersObj);
       } catch (error) {
         console.error("Error fetching teams:", error);
@@ -181,7 +184,7 @@ function App() {
     };
 
     fetchTeams();
-  }, [user]); // Add user as dependency
+  }, [user]);
 
   useEffect(() => {
     const fetchGames = async () => {
@@ -307,21 +310,25 @@ function App() {
   const handleAddPlayer = async () => {
     if (selectedTeam && newPlayer.name && newPlayer.number && user) {
       try {
-        await addPlayerToTeam(selectedTeam, newPlayer);
+        // addPlayerToTeam now returns the complete player object with ID
+        const addedPlayer = await addPlayerToTeam(selectedTeam, newPlayer);
+        console.log('Added player:', addedPlayer); // Debug log
         
-        // Update local state
+        // Update local state with the complete player object
         const updatedPlayers = {
           ...players,
-          [selectedTeam]: [...players[selectedTeam], newPlayer]
+          [selectedTeam]: [...(players[selectedTeam] || []), addedPlayer]
         };
+        console.log('Updating players state:', updatedPlayers); // Debug log
         setPlayers(updatedPlayers);
+        
+        // Reset form
+        setNewPlayer({ id: '', name: '', number: '', position: 'Setter' });
+        setShowNewPlayerModal(false);
         
         // Fetch updated team data to get new player count
         const fetchedTeams = await getAllTeams(user.uid);
         setTeams(fetchedTeams);
-        
-        setNewPlayer({ id: '', name: '', number: '', position: 'Setter' });
-        setShowNewPlayerModal(false);
       } catch (error) {
         console.error("Error adding player:", error);
         alert("Failed to add player. Please try again.");
@@ -522,6 +529,9 @@ function App() {
   };
 
   const handleDeletePlayer = async (teamId: string, playerId: string, playerName: string) => {
+    // Debug log
+    console.log('handleDeletePlayer called with:', { teamId, playerId, playerName });
+    
     const isConfirmed = window.confirm(`Are you sure you want to remove ${playerName} from the team?`);
     
     if (isConfirmed && user) {
@@ -731,25 +741,44 @@ function App() {
           </div>
           <div className="bg-white dark:bg-secondary/50 rounded-xl p-4 shadow-lg">
             <div className="space-y-4">
-              {players[selectedTeam]?.map((player) => (
-                <div key={player.id || `player-${player.name}-${player.number}`} className="flex items-center justify-between border-b dark:border-gray-700 pb-2">
-                  <div>
-                    <p className="font-medium text-gray-800 dark:text-white">{player.name}</p>
-                    <p className="text-sm text-gray-600 dark:text-gray-400">{player.position}</p>
-                  </div>
-                  <div className="flex items-center space-x-3">
-                    <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center">
-                      <span className="text-primary font-medium">{player.number}</span>
+              {players[selectedTeam]?.map((player) => {
+                console.log('Rendering player:', player); // Debug log
+                return (
+                  <div key={player.id || `player-${player.name}-${player.number}`} className="flex items-center justify-between border-b dark:border-gray-700 pb-2">
+                    <div>
+                      <p className="font-medium text-gray-800 dark:text-white">{player.name}</p>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">{player.position}</p>
                     </div>
-                    <button
-                      onClick={() => handleDeletePlayer(selectedTeam, player.id, player.name)}
-                      className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-full"
-                    >
-                      <X className="w-5 h-5" />
-                    </button>
+                    <div className="flex items-center space-x-3">
+                      <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center">
+                        <span className="text-primary font-medium">{player.number}</span>
+                      </div>
+                      <button
+                        onClick={() => {
+                          console.log('Delete button clicked for player:', player);
+                          if (!player.id) {
+                            console.error('Player ID is missing:', player);
+                            // Instead of showing an alert, let's try to fetch the latest data
+                            if (user) {
+                              getTeamPlayers(selectedTeam).then(updatedPlayers => {
+                                setPlayers(prev => ({
+                                  ...prev,
+                                  [selectedTeam]: updatedPlayers
+                                }));
+                              });
+                            }
+                            return;
+                          }
+                          handleDeletePlayer(selectedTeam, player.id, player.name);
+                        }}
+                        className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-full"
+                      >
+                        <X className="w-5 h-5" />
+                      </button>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </section>
@@ -1551,11 +1580,11 @@ function App() {
                     <option value="">Select Player</option>
                     {players[selectedGame.teamId]
                       .filter(player => !selectedSet.lineup.some(p => p.number === player.number))
-                      .map((player) => (
-                        <option key={player.number} value={player.number}>
-                          {player.name} ({player.position})
-                        </option>
-                      ))}
+                        .map((player) => (
+                          <option key={player.number} value={player.number}>
+                            {player.name} ({player.position})
+                          </option>
+                        ))}
                   </select>
                 </div>
               </div>

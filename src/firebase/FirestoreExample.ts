@@ -97,23 +97,32 @@ async function getAllTeams(userId: string) {
 
 async function addPlayerToTeam(teamId: string, playerData: PlayerData) {
   try {
-    // First add the player
+    // First add the player with an explicit id field
     const playerRef = await addDoc(collection(db, 'teams', teamId, 'players'), {
       ...playerData,
-      joinedAt: new Date()
+      joinedAt: new Date(),
+      // Add any other fields you want to store
     });
+
+    // Create the complete player object
+    const completePlayer = {
+      id: playerRef.id,  // Explicitly set the ID
+      name: playerData.name,
+      number: playerData.number,
+      position: playerData.position,
+      joinedAt: new Date()
+    };
+
+    // Update the document with its own ID
+    await updateDoc(playerRef, { id: playerRef.id });
     
-    // Get the current number of players
-    const players = await getTeamPlayers(teamId);
-    const currentPlayerCount = players.length;
-    
-    // Update team's player count with the exact number
+    // Update team's player count
     const teamRef = doc(db, 'teams', teamId);
     await updateDoc(teamRef, {
-      playerCount: currentPlayerCount
+      playerCount: (await getTeamPlayers(teamId)).length
     });
     
-    return playerRef;
+    return completePlayer;
   } catch (e) {
     console.error("Error adding player: ", e);
     throw e;
@@ -125,9 +134,21 @@ async function getTeamPlayers(teamId: string) {
     const q = query(collection(db, 'teams', teamId, 'players'));
     const querySnapshot = await getDocs(q);
     const players: Array<PlayerData & { id: string }> = [];
+    
     querySnapshot.forEach((doc) => {
-      players.push({ id: doc.id, ...doc.data() as PlayerData });
+      const data = doc.data();
+      const player = {
+        id: doc.id,  // Always use the document ID
+        name: data.name,
+        number: data.number,
+        position: data.position,
+        joinedAt: data.joinedAt
+      };
+      players.push(player);
     });
+    
+    // Log the players being returned
+    console.log('getTeamPlayers returning:', players);
     return players;
   } catch (e) {
     console.error("Error fetching team players: ", e);
@@ -135,27 +156,35 @@ async function getTeamPlayers(teamId: string) {
   }
 }
 
-async function deletePlayer(teamId: string, playerId: string) {
+const deletePlayer = async (teamId: string, playerId: string) => {
   try {
-    // Delete player document
-    await deleteDoc(doc(db, 'teams', teamId, 'players', playerId));
+    // Debug log
+    console.log('Attempting to delete player:', { teamId, playerId });
     
-    // Get the current number of players after deletion
-    const players = await getTeamPlayers(teamId);
-    const currentPlayerCount = players.length;
+    // Validate inputs
+    if (!teamId || !playerId) {
+      console.error('Missing required IDs:', { teamId, playerId });
+      throw new Error('Team ID and Player ID are required');
+    }
+
+    // Create document reference to the specific player
+    const playerRef = doc(db, 'teams', teamId, 'players', playerId);
     
-    // Update team's player count with the exact number
-    const teamRef = doc(db, 'teams', teamId);
-    await updateDoc(teamRef, {
-      playerCount: currentPlayerCount
-    });
+    // Debug log
+    console.log('Created player reference:', playerRef.path);
     
-    return true;
-  } catch (e) {
-    console.error("Error deleting player:", e);
-    throw e;
+    // Delete the player document
+    await deleteDoc(playerRef);
+    
+    // Update the team's player count
+    await syncTeamPlayerCount(teamId);
+    
+    console.log('Player deleted successfully');
+  } catch (error) {
+    console.error('Error deleting player:', error);
+    throw error;
   }
-}
+};
 
 async function deleteTeam(teamId: string) {
   try {
