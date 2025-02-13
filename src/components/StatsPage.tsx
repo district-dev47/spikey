@@ -47,6 +47,24 @@ interface ExtendedPlayerStats extends PlayerSetStats {
     setsPlayed: Set<string>;
 }
 
+interface PlayerHighlight {
+    mostReliable: { name: string; percentage: number } | null;
+    mvp: { name: string; percentage: number } | null;
+    mostVersatile: { name: string; subs: number } | null;
+}
+
+interface GamePerformance {
+    difference: number;
+    date: string | null;
+}
+
+interface DominantSet {
+    difference: number;
+    score: string;
+    date: string | null;
+    opponent: string;
+}
+
 interface Props {
     selectedTeam: string | null;
     players: Record<string, Player[]>;
@@ -483,6 +501,208 @@ const StatsPage: React.FC<Props> = ({ selectedTeam, players, teams, onTeamSelect
                                         })}
                                 </tbody>
                             </table>
+                        </div>
+                    </div>
+
+                    <div className="bg-white dark:bg-secondary/50 rounded-xl p-4 shadow-lg">
+                        <h3 className="text-lg font-semibold mb-4 dark:text-white">Highlights</h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            {/* Player Highlights */}
+                            {(() => {
+                                // Calculate player highlights
+                                const playerHighlights = players[selectedTeam]?.reduce((acc: PlayerHighlight, player) => {
+                                    const stats = playerStats[player.name] || defaultStats;
+                                    
+                                    // Most Reliable Player (highest set percentage)
+                                    if (stats.setPercentage > (acc.mostReliable?.percentage || 0) && stats.totalGames > 0) {
+                                        acc.mostReliable = {
+                                            name: player.name,
+                                            percentage: stats.setPercentage
+                                        };
+                                    }
+
+                                    // MVP (highest win percentage)
+                                    if (stats.winPercentage > (acc.mvp?.percentage || 0) && stats.totalGames > 0) {
+                                        acc.mvp = {
+                                            name: player.name,
+                                            percentage: stats.winPercentage
+                                        };
+                                    }
+
+                                    // Most Versatile (most substitutions)
+                                    if (stats.totalSubstitutions > (acc.mostVersatile?.subs || 0)) {
+                                        acc.mostVersatile = {
+                                            name: player.name,
+                                            subs: stats.totalSubstitutions
+                                        };
+                                    }
+
+                                    return acc;
+                                }, {
+                                    mostReliable: null,
+                                    mvp: null,
+                                    mostVersatile: null
+                                } as PlayerHighlight);
+
+                                // Calculate team highlights
+                                const teamGames = games.filter(game => game.teamId === selectedTeam && game.status !== 'in-progress');
+                                
+                                // Best Performance
+                                const bestPerformance = teamGames.reduce((best: GamePerformance, game) => {
+                                    const setDifference = game.sets.reduce((acc, set) => {
+                                        if (set.score) {
+                                            return acc + ((set.score.team || 0) - (set.score.opponent || 0));
+                                        }
+                                        return acc;
+                                    }, 0);
+                                    
+                                    if (setDifference > best.difference) {
+                                        return {
+                                            difference: setDifference,
+                                            date: game.date
+                                        };
+                                    }
+                                    return best;
+                                }, { difference: -Infinity, date: null });
+
+                                // Longest Win Streak
+                                const streak = calculateCurrentStreak(teamGames);
+
+                                // Most Dominant Set
+                                const mostDominantSet = teamGames.reduce((best: DominantSet, game) => {
+                                    game.sets.forEach(set => {
+                                        if (set.score) {
+                                            const difference = (set.score.team || 0) - (set.score.opponent || 0);
+                                            if (difference > best.difference) {
+                                                best = {
+                                                    difference,
+                                                    score: `${set.score.team}-${set.score.opponent}`,
+                                                    date: game.date,
+                                                    opponent: game.opponent
+                                                };
+                                            }
+                                        }
+                                    });
+                                    return best;
+                                }, { difference: -Infinity, score: '', date: null, opponent: '' });
+
+                                return (
+                                    <>
+                                        {/* Player Highlight Cards */}
+                                        <div className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 p-4 rounded-lg">
+                                            <div className="flex items-center justify-between">
+                                                <h4 className="text-sm font-semibold text-blue-600 dark:text-blue-400">Most Reliable Player</h4>
+                                                <div className="relative group">
+                                                    <HelpCircle className="w-4 h-4 text-blue-400 cursor-help" />
+                                                    <div className="absolute right-0 w-64 p-2 bg-white dark:bg-gray-800 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-10 text-sm">
+                                                        <p className="text-gray-600 dark:text-gray-300">Player with the highest percentage of sets played relative to available sets in their games. Shows consistent participation and reliability.</p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <p className="text-xl font-bold mt-1 dark:text-white">{playerHighlights.mostReliable?.name || 'N/A'}</p>
+                                            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                                                {playerHighlights.mostReliable ? `${playerHighlights.mostReliable.percentage.toFixed(1)}% set participation` : 'No data available'}
+                                            </p>
+                                        </div>
+
+                                        <div className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 p-4 rounded-lg">
+                                            <div className="flex items-center justify-between">
+                                                <h4 className="text-sm font-semibold text-purple-600 dark:text-purple-400">MVP</h4>
+                                                <div className="relative group">
+                                                    <HelpCircle className="w-4 h-4 text-purple-400 cursor-help" />
+                                                    <div className="absolute right-0 w-64 p-2 bg-white dark:bg-gray-800 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-10 text-sm">
+                                                        <p className="text-gray-600 dark:text-gray-300">Player with the highest win percentage when playing. Based on sets won while the player was in the lineup.</p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <p className="text-xl font-bold mt-1 dark:text-white">{playerHighlights.mvp?.name || 'N/A'}</p>
+                                            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                                                {playerHighlights.mvp ? `${playerHighlights.mvp.percentage}% win rate` : 'No data available'}
+                                            </p>
+                                        </div>
+
+                                        <div className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 p-4 rounded-lg">
+                                            <div className="flex items-center justify-between">
+                                                <h4 className="text-sm font-semibold text-green-600 dark:text-green-400">Most Versatile Player</h4>
+                                                <div className="relative group">
+                                                    <HelpCircle className="w-4 h-4 text-green-400 cursor-help" />
+                                                    <div className="absolute right-0 w-64 p-2 bg-white dark:bg-gray-800 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-10 text-sm">
+                                                        <p className="text-gray-600 dark:text-gray-300">Player with the most substitutions, indicating adaptability and utility in different game situations.</p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <p className="text-xl font-bold mt-1 dark:text-white">{playerHighlights.mostVersatile?.name || 'N/A'}</p>
+                                            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                                                {playerHighlights.mostVersatile ? `${playerHighlights.mostVersatile.subs} substitutions` : 'No data available'}
+                                            </p>
+                                        </div>
+
+                                        {/* Team Highlight Cards */}
+                                        <div className="bg-gradient-to-br from-red-50 to-red-100 dark:from-red-900/20 dark:to-red-800/20 p-4 rounded-lg">
+                                            <div className="flex items-center justify-between">
+                                                <h4 className="text-sm font-semibold text-red-600 dark:text-red-400">Best Performance</h4>
+                                                <div className="relative group">
+                                                    <HelpCircle className="w-4 h-4 text-red-400 cursor-help" />
+                                                    <div className="absolute right-0 w-64 p-2 bg-white dark:bg-gray-800 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-10 text-sm">
+                                                        <p className="text-gray-600 dark:text-gray-300">Game with the highest point difference across all sets. Shows the team's most dominant overall game performance.</p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <p className="text-xl font-bold mt-1 dark:text-white">
+                                                {bestPerformance.difference > -Infinity ? `+${bestPerformance.difference} points` : 'N/A'}
+                                            </p>
+                                            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                                                {bestPerformance.date ? new Date(bestPerformance.date).toLocaleDateString() : 'No data available'}
+                                            </p>
+                                        </div>
+
+                                        <div className="bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-900/20 dark:to-orange-800/20 p-4 rounded-lg">
+                                            <div className="flex items-center justify-between">
+                                                <h4 className="text-sm font-semibold text-orange-600 dark:text-orange-400">Longest Win Streak</h4>
+                                                <div className="relative group">
+                                                    <HelpCircle className="w-4 h-4 text-orange-400 cursor-help" />
+                                                    <div className="absolute right-0 w-64 p-2 bg-white dark:bg-gray-800 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-10 text-sm">
+                                                        <p className="text-gray-600 dark:text-gray-300">Highest number of consecutive games won. Only completed games are counted, and the streak is broken by any loss.</p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <p className="text-xl font-bold mt-1 dark:text-white">
+                                                {streak.type === 'win' ? `${streak.count} games` : 'N/A'}
+                                            </p>
+                                            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                                                {streak.type === 'win' ? 'Consecutive wins' : 'No win streak'}
+                                            </p>
+                                        </div>
+
+                                        <div className="bg-gradient-to-br from-indigo-50 to-indigo-100 dark:from-indigo-900/20 dark:to-indigo-800/20 p-4 rounded-lg">
+                                            <div className="flex items-center justify-between">
+                                                <h4 className="text-sm font-semibold text-indigo-600 dark:text-indigo-400">Most Dominant Set</h4>
+                                                <div className="relative group">
+                                                    <HelpCircle className="w-4 h-4 text-indigo-400 cursor-help" />
+                                                    <div className="absolute right-0 w-64 p-2 bg-white dark:bg-gray-800 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-10 text-sm">
+                                                        <p className="text-gray-600 dark:text-gray-300">Single set with the highest point difference. Shows the team's most dominant individual set performance against any opponent.</p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div className="mt-1">
+                                                <div className="flex items-baseline space-x-2">
+                                                    <p className="text-xl font-bold dark:text-white">
+                                                        {mostDominantSet.score || 'N/A'}
+                                                    </p>
+                                                    <p className="text-lg font-semibold text-indigo-600 dark:text-indigo-400">
+                                                        vs {mostDominantSet.opponent || 'N/A'}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                                                {mostDominantSet.date ? 
+                                                    new Date(mostDominantSet.date).toLocaleDateString() : 
+                                                    'No data available'}
+                                            </p>
+                                        </div>
+                                    </>
+                                );
+                            })()}
                         </div>
                     </div>
                 </div>
