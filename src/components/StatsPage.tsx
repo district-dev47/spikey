@@ -2,7 +2,19 @@ import React, { useMemo, useState } from 'react';
 import { Player } from '../types/player';
 import { Game, GameSet } from '../types/game';
 import { Team } from '../types/team';
-import { TrendingUp, TrendingDown, HelpCircle, ChevronUp, ChevronDown } from 'lucide-react';
+import { 
+    TrendingUp, 
+    TrendingDown, 
+    HelpCircle, 
+    ChevronUp, 
+    ChevronDown,
+    Shield,
+    Trophy,
+    Shuffle,
+    Star,
+    Flame,
+    Target
+} from 'lucide-react';
 
 interface StatsPageProps {
     selectedTeam: string;
@@ -591,7 +603,10 @@ const StatsPage: React.FC<Props> = ({ selectedTeam, players, teams, onTeamSelect
                                         {/* Player Highlight Cards */}
                                         <div className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 p-4 rounded-lg">
                                             <div className="flex items-center justify-between">
-                                                <h4 className="text-sm font-semibold text-blue-600 dark:text-blue-400">Most Reliable Player</h4>
+                                                <div className="flex items-center gap-2">
+                                                    <Shield className="w-5 h-5 text-blue-500" />
+                                                    <h4 className="text-sm font-semibold text-blue-600 dark:text-blue-400">Most Reliable Player</h4>
+                                                </div>
                                                 <div className="relative group">
                                                     <HelpCircle className="w-4 h-4 text-blue-400 cursor-help" />
                                                     <div className="absolute right-0 w-64 p-2 bg-white dark:bg-gray-800 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-10 text-sm">
@@ -607,7 +622,10 @@ const StatsPage: React.FC<Props> = ({ selectedTeam, players, teams, onTeamSelect
 
                                         <div className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 p-4 rounded-lg">
                                             <div className="flex items-center justify-between">
-                                                <h4 className="text-sm font-semibold text-purple-600 dark:text-purple-400">MVP</h4>
+                                                <div className="flex items-center gap-2">
+                                                    <Trophy className="w-5 h-5 text-purple-500" />
+                                                    <h4 className="text-sm font-semibold text-purple-600 dark:text-purple-400">MVP</h4>
+                                                </div>
                                                 <div className="relative group">
                                                     <HelpCircle className="w-4 h-4 text-purple-400 cursor-help" />
                                                     <div className="absolute right-0 w-64 p-2 bg-white dark:bg-gray-800 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-10 text-sm">
@@ -623,7 +641,10 @@ const StatsPage: React.FC<Props> = ({ selectedTeam, players, teams, onTeamSelect
 
                                         <div className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 p-4 rounded-lg">
                                             <div className="flex items-center justify-between">
-                                                <h4 className="text-sm font-semibold text-green-600 dark:text-green-400">Most Versatile Player</h4>
+                                                <div className="flex items-center gap-2">
+                                                    <Shuffle className="w-5 h-5 text-green-500" />
+                                                    <h4 className="text-sm font-semibold text-green-600 dark:text-green-400">Most Versatile Player</h4>
+                                                </div>
                                                 <div className="relative group">
                                                     <HelpCircle className="w-4 h-4 text-green-400 cursor-help" />
                                                     <div className="absolute right-0 w-64 p-2 bg-white dark:bg-gray-800 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-10 text-sm">
@@ -640,7 +661,10 @@ const StatsPage: React.FC<Props> = ({ selectedTeam, players, teams, onTeamSelect
                                         {/* Team Highlight Cards */}
                                         <div className="bg-gradient-to-br from-red-50 to-red-100 dark:from-red-900/20 dark:to-red-800/20 p-4 rounded-lg">
                                             <div className="flex items-center justify-between">
-                                                <h4 className="text-sm font-semibold text-red-600 dark:text-red-400">Best Performance</h4>
+                                                <div className="flex items-center gap-2">
+                                                    <Star className="w-5 h-5 text-red-500" />
+                                                    <h4 className="text-sm font-semibold text-red-600 dark:text-red-400">Best Performance</h4>
+                                                </div>
                                                 <div className="relative group">
                                                     <HelpCircle className="w-4 h-4 text-red-400 cursor-help" />
                                                     <div className="absolute right-0 w-64 p-2 bg-white dark:bg-gray-800 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-10 text-sm">
@@ -658,7 +682,10 @@ const StatsPage: React.FC<Props> = ({ selectedTeam, players, teams, onTeamSelect
 
                                         <div className="bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-900/20 dark:to-orange-800/20 p-4 rounded-lg">
                                             <div className="flex items-center justify-between">
-                                                <h4 className="text-sm font-semibold text-orange-600 dark:text-orange-400">Longest Win Streak</h4>
+                                                <div className="flex items-center gap-2">
+                                                    <Flame className="w-5 h-5 text-orange-500" />
+                                                    <h4 className="text-sm font-semibold text-orange-600 dark:text-orange-400">Longest Win Streak</h4>
+                                                </div>
                                                 <div className="relative group">
                                                     <HelpCircle className="w-4 h-4 text-orange-400 cursor-help" />
                                                     <div className="absolute right-0 w-64 p-2 bg-white dark:bg-gray-800 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-10 text-sm">
@@ -676,7 +703,10 @@ const StatsPage: React.FC<Props> = ({ selectedTeam, players, teams, onTeamSelect
 
                                         <div className="bg-gradient-to-br from-indigo-50 to-indigo-100 dark:from-indigo-900/20 dark:to-indigo-800/20 p-4 rounded-lg">
                                             <div className="flex items-center justify-between">
-                                                <h4 className="text-sm font-semibold text-indigo-600 dark:text-indigo-400">Most Dominant Set</h4>
+                                                <div className="flex items-center gap-2">
+                                                    <Target className="w-5 h-5 text-indigo-500" />
+                                                    <h4 className="text-sm font-semibold text-indigo-600 dark:text-indigo-400">Most Dominant Set</h4>
+                                                </div>
                                                 <div className="relative group">
                                                     <HelpCircle className="w-4 h-4 text-indigo-400 cursor-help" />
                                                     <div className="absolute right-0 w-64 p-2 bg-white dark:bg-gray-800 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-10 text-sm">
