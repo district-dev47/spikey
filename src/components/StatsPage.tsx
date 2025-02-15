@@ -193,15 +193,18 @@ const StatsPage: React.FC<Props> = ({ selectedTeam, players, teams, onTeamSelect
         teamGames.forEach(game => {
             if (game.status === 'in-progress') return;
 
+            // Track players who participated in this game through substitutions
+            const playersInGame = new Set<string>();
+
             game.sets.forEach(set => {
                 if (!set.score) return;
 
-                // Only process players in the starting lineup
+                // Add players from starting lineup
                 set.lineup?.forEach(player => {
                     if (allStats[player.name]) {
                         const setId = `${game.id}-set${set.number}`;
                         allStats[player.name].setsPlayed.add(setId);
-                        allStats[player.name].gamesPlayed.add(game.id);
+                        playersInGame.add(player.name);
                         
                         // Only count wins for starting lineup players
                         if (set.score?.team > set.score?.opponent) {
@@ -210,12 +213,20 @@ const StatsPage: React.FC<Props> = ({ selectedTeam, players, teams, onTeamSelect
                     }
                 });
 
-                // Only count substitutions for tracking total subs, not for win percentage
+                // Track substitutions and add substituted players to game participants
                 set.substitutions?.forEach(sub => {
                     if (allStats[sub.inPlayer.name]) {
                         allStats[sub.inPlayer.name].totalSubstitutions += 1;
+                        playersInGame.add(sub.inPlayer.name);
                     }
                 });
+            });
+
+            // Add game to gamesPlayed for all players who participated
+            playersInGame.forEach(playerName => {
+                if (allStats[playerName]) {
+                    allStats[playerName].gamesPlayed.add(game.id);
+                }
             });
         });
 
